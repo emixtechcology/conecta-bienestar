@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Bienestar Conecta</title>
+  <meta name="description" content="Comunicación Social · Programas para el Bienestar Tabasco">
+  <meta name="theme-color" content="#7B1E3A" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#120C0E" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="B. Conecta">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/svg+xml" href="iconos/icono.svg">
+  <link rel="icon" type="image/png" sizes="192x192" href="iconos/icono-192.png">
+  <link rel="apple-touch-icon" href="iconos/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Figtree:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+  <!-- Pantalla de carga -->
+  <div id="splash" class="splash" aria-live="polite">
+    <svg width="64" height="64" viewBox="0 0 130 130" aria-hidden="true">
+      <path d="M62 118 C 61 98, 61 82, 63 64" fill="none" style="stroke:var(--jade)" stroke-width="8" stroke-linecap="round"/>
+      <path d="M61 72 C 30 74, 12 52, 14 22 C 44 20, 64 40, 61 72 Z" style="fill:var(--vino)"/>
+      <path d="M65 60 C 70 30, 92 12, 120 16 C 122 46, 98 66, 65 60 Z" style="fill:var(--oro)"/>
+    </svg>
+    <span class="spin"></span><span class="sr">Cargando Bienestar Conecta</span>
+  </div>
+
+  <!-- Pantalla de acceso -->
+  <section id="acceso" class="acceso" hidden>
+    <div class="acceso-card">
+      <div class="logo big-logo">
+        <svg width="54" height="54" viewBox="0 0 130 130" aria-hidden="true">
+          <path d="M62 118 C 61 98, 61 82, 63 64" fill="none" style="stroke:var(--jade)" stroke-width="8" stroke-linecap="round"/>
+          <path d="M61 72 C 30 74, 12 52, 14 22 C 44 20, 64 40, 61 72 Z" style="fill:var(--vino)"/>
+          <path d="M65 60 C 70 30, 92 12, 120 16 C 122 46, 98 66, 65 60 Z" style="fill:var(--oro)"/>
+        </svg>
+        <div><b>Bienestar</b> <span>Conecta</span></div>
+      </div>
+      <p class="acceso-sub">Comunicación Social · Programas para el Bienestar Tabasco</p>
+
+      <form id="fLogin" class="stack" novalidate>
+        <div><label class="l" for="lEmail">Correo</label><input type="email" id="lEmail" autocomplete="username" inputmode="email"></div>
+        <div><label class="l" for="lPass">Contraseña</label><input type="password" id="lPass" autocomplete="current-password"></div>
+        <button class="btn block" type="submit" id="lBtn">Entrar</button>
+        <p class="status err" id="lMsg" aria-live="polite"></p>
+        <p class="meta center">¿Olvidaste tu contraseña? Pídele al administrador que la restablezca.</p>
+      </form>
+
+      <form id="fCambio" class="stack" novalidate hidden>
+        <h2>Crea tu contraseña</h2>
+        <p class="meta">Es tu primera vez o te dieron una contraseña temporal. Elige una nueva de al menos 8 caracteres.</p>
+        <div><label class="l" for="cNueva">Contraseña nueva</label><input type="password" id="cNueva" autocomplete="new-password"></div>
+        <div><label class="l" for="cConf">Repítela</label><input type="password" id="cConf" autocomplete="new-password"></div>
+        <button class="btn block" type="submit" id="cBtn">Guardar y entrar</button>
+        <p class="status err" id="cMsg" aria-live="polite"></p>
+      </form>
+    </div>
+  </section>
+
+  <!-- Aplicación -->
+  <div id="app" class="shell" hidden>
+    <header class="top">
+      <button class="menubtn" id="menuBtn" aria-label="Abrir menú" aria-expanded="false" aria-controls="drawer">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
+      </button>
+      <div class="logo">
+        <svg width="34" height="34" viewBox="0 0 130 130" aria-hidden="true">
+          <path d="M62 118 C 61 98, 61 82, 63 64" fill="none" style="stroke:var(--jade)" stroke-width="8" stroke-linecap="round"/>
+          <path d="M61 72 C 30 74, 12 52, 14 22 C 44 20, 64 40, 61 72 Z" style="fill:var(--vino)"/>
+          <path d="M65 60 C 70 30, 92 12, 120 16 C 122 46, 98 66, 65 60 Z" style="fill:var(--oro)"/>
+        </svg>
+        <div><b>Bienestar</b> <span>Conecta</span></div>
+      </div>
+      <nav class="nav" id="nav" aria-label="Módulos"></nav>
+      <div class="me">
+        <div class="avatar" id="meAv"></div>
+        <div class="who"><b id="meName"></b><small id="meRole"></small></div>
+        <button class="iconbtn" id="btnSalir" aria-label="Cerrar sesión" title="Cerrar sesión">
+          <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 16l-4-4 4-4M6 12h10"/></svg>
+        </button>
+      </div>
+    </header>
+    <main id="view" class="view" tabindex="-1"></main>
+  </div>
+
+  <!-- Menú lateral (teléfono) -->
+  <div class="drawer" id="drawer" hidden>
+    <button class="back" id="drawerBack" aria-label="Cerrar menú" tabindex="-1"></button>
+    <div class="panel" role="dialog" aria-modal="true" aria-label="Menú">
+      <div class="ph">
+        <div class="logo"><b>Bienestar</b> <span>Conecta</span></div>
+        <button class="menubtn on" id="drawerClose" aria-label="Cerrar menú">
+          <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+      <div class="prof"><div class="avatar" id="dAv"></div><div class="who on"><b id="dName"></b><small id="dRole"></small></div></div>
+      <span class="lbl">Módulos</span>
+      <nav class="dlist" id="dlist" aria-label="Módulos"></nav>
+      <div class="dfoot">
+        <button class="linkbtn" id="dTV">Vista completa TV</button>
+        <button class="linkbtn" id="dPass">Cambiar contraseña</button>
+        <button class="linkbtn" id="dSalir">Cerrar sesión</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Vista completa TV -->
+  <div class="tv" id="tv" hidden role="dialog" aria-modal="true" aria-label="Vista completa TV"></div>
+
+  <!-- Ventana emergente -->
+  <div class="modal" id="modal" hidden>
+    <button class="back" id="modalBack" aria-label="Cerrar" tabindex="-1"></button>
+    <div class="mbox" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+      <div class="card-h"><h2 id="mTitle"></h2><button class="iconbtn" id="mClose" aria-label="Cerrar">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+      <div id="mBody"></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" hidden></div>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
