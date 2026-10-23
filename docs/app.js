@@ -239,8 +239,8 @@ function barsSVG(vals, labels, hi, badge, tam) {
     g += '<rect x="' + x + '" y="' + y + '" width="' + bw + '" height="' + h + '" rx="' + Math.min(bw / 2, h / 2) + '" style="' + fill + '"><title>' + esc(labels[i]) + ': ' + fmt(v) + '</title></rect>';
     g += '<text x="' + (x + bw / 2) + '" y="' + (H - 10) + '" text-anchor="middle" style="fill:' + (i === hi ? 'var(--ink)' : 'var(--muted)') + ';font-weight:' + (i === hi ? 600 : 400) + '">' + esc(labels[i]) + '</text>';
     if (i === hi && badge) {
-      g += '<rect x="' + (x + bw / 2 - 30) + '" y="' + (y - 28) + '" width="60" height="22" rx="11" style="fill:var(--ink)"/>' +
-        '<text x="' + (x + bw / 2) + '" y="' + (y - 13) + '" text-anchor="middle" style="fill:var(--card);font-weight:600">' + esc(badge) + '</text>';
+      g += '<rect x="' + (x + bw / 2 - 30) + '" y="' + (y - 28) + '" width="60" height="22" rx="11" style="fill:var(--vino-soft)"/>' +
+        '<text x="' + (x + bw / 2) + '" y="' + (y - 13) + '" text-anchor="middle" style="fill:var(--vino);font-weight:700">' + esc(badge) + '</text>';
     }
   });
   return '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Interacciones por mes"><defs><pattern id="h' + gid + '" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="9" height="9" style="fill:var(--bar-soft)"/><line x1="0" y1="0" x2="0" y2="9" style="stroke:var(--bar-hatch)" stroke-width="4"/></pattern></defs>' + g + '</svg>';
@@ -272,8 +272,8 @@ function areaSVG(vals, labels) {
   });
   var e = pts[n - 1], bx = Math.min(Math.max(e[0] - 36, x0), x1 - 72);
   g += '<circle cx="' + e[0] + '" cy="' + e[1] + '" r="7" style="fill:var(--card);stroke:var(--vino)" stroke-width="3"/>' +
-    '<rect x="' + bx + '" y="' + (e[1] - 36) + '" width="72" height="24" rx="12" style="fill:var(--ink)"/>' +
-    '<text x="' + (bx + 36) + '" y="' + (e[1] - 20) + '" text-anchor="middle" style="fill:var(--card);font-weight:600">' + fmt(vals[n - 1]) + '</text>';
+    '<rect x="' + bx + '" y="' + (e[1] - 36) + '" width="72" height="24" rx="12" style="fill:var(--vino)"/>' +
+    '<text x="' + (bx + 36) + '" y="' + (e[1] - 20) + '" text-anchor="middle" style="fill:var(--on-vino);font-weight:600">' + fmt(vals[n - 1]) + '</text>';
   return '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Evolución de interacciones">' + g + '</svg>';
 }
 function ringSVG(p) {
@@ -391,14 +391,15 @@ function pintarMarco() {
   $('#nav').innerHTML = botones; $('#dlist').innerHTML = botones;
   $('#meAv').textContent = initials(u.nombre); $('#dAv').textContent = initials(u.nombre);
   $('#meName').textContent = u.nombre; $('#dName').textContent = u.nombre;
-  $('#meRole').textContent = ROL_DESC[u.rol]; $('#dRole').textContent = ROL_TXT[u.rol];
+  $('#meRole').textContent = ROL_TXT[u.rol]; $('#dRole').textContent = ROL_TXT[u.rol];
+  $('#uName').textContent = u.nombre; $('#uMail').textContent = u.email || '';
   $$('#nav [data-go], #dlist [data-go]').forEach(function (b) {
     b.onclick = function () { if (b.dataset.go === 'contenidos') S.editItem = null; go(b.dataset.go); };
   });
 }
 
 function go(mod) {
-  cerrarMenu();
+  cerrarMenu(); cerrarUMenu();
   if (MODS_ROL[S.user.rol].indexOf(mod) === -1) mod = 'inicio';
   S.mod = mod; S.confirmDel = null; S.rejecting = null;
   pintarMarco();
@@ -459,7 +460,7 @@ function mInicio(seq) {
           (d.proximas.length ? '<div class="tbl"><table class="rt"><thead><tr><th>Contenido</th><th>Fecha</th><th>Dónde</th><th>Estado</th></tr></thead><tbody>' +
             d.proximas.map(function (i) {
               return '<tr><td class="first"><div class="tcell"><span class="pg ' + pagesOf(i) + '"></span><div><b>' + esc(i.tema) + '</b><small>' + esc(i.tipo) + ' · subió ' + esc(i.autorNombre) + (i.revisadoPor && i.estado !== 'Rechazado' ? ' · aprobó ' + esc(i.revisadoPor) : '') + '</small></div></div></td>' +
-                '<td data-label="Fecha" style="white-space:nowrap">' + fCorta(i.fecha) + ' · ' + esc(i.hora) + '</td><td data-label="Dónde" style="white-space:nowrap">' + nets(i) + '</td><td data-label="Estado">' + st(i.estado) + '</td></tr>';
+                '<td data-label="Fecha" style="white-space:nowrap">' + fCorta(i.fecha) + ' · ' + esc(i.hora) + '</td><td data-label="Dónde">' + nets(i) + '</td><td data-label="Estado">' + st(i.estado) + '</td></tr>';
             }).join('') + '</tbody></table></div>'
             : '<div class="emptyst"><span class="round">' + ic('calendar') + '</span><b>No hay nada programado</b><p>Lo que se suba para los próximos días aparecerá aquí.</p></div>') +
         '</div>' +
@@ -1292,16 +1293,20 @@ $('#drawerBack').onclick = cerrarMenu;
 $('#dSalir').onclick = function () { cerrarMenu(); salir(); };
 $('#dPass').onclick = function () { cerrarMenu(); ventanaCuenta(); };
 $('#dTV').onclick = function () { cerrarMenu(); abrirTV(); };
-$('#btnSalir').onclick = salir;
-$('#meAv').style.cursor = 'pointer';
-$('#meAv').setAttribute('role', 'button'); $('#meAv').setAttribute('tabindex', '0'); $('#meAv').setAttribute('aria-label', 'Tu cuenta');
-$('#meAv').onclick = ventanaCuenta;
-$('#meAv').onkeydown = function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ventanaCuenta(); } };
+/* Menú de usuario (arriba a la derecha) */
+function abrirUMenu() { $('#umenu').hidden = false; $('#meBtn').setAttribute('aria-expanded', 'true'); $('#uCuenta').focus(); }
+function cerrarUMenu() { if ($('#umenu').hidden) return; $('#umenu').hidden = true; $('#meBtn').setAttribute('aria-expanded', 'false'); }
+$('#meBtn').onclick = function (e) { e.stopPropagation(); if ($('#umenu').hidden) abrirUMenu(); else cerrarUMenu(); };
+document.addEventListener('click', function (e) { if (!e.target.closest('.me')) cerrarUMenu(); });
+$('#uCuenta').onclick = function () { cerrarUMenu(); ventanaCuenta(); };
+$('#uTV').onclick = function () { cerrarUMenu(); abrirTV(); };
+$('#uSalir').onclick = function () { cerrarUMenu(); salir(); };
 $('#mClose').onclick = cerrarModal;
 $('#modalBack').onclick = cerrarModal;
 document.addEventListener('keydown', function (e) {
   if (e.key !== 'Escape') return;
   if (TV.on) { cerrarTV(); return; }
+  if (!$('#umenu').hidden) { cerrarUMenu(); $('#meBtn').focus(); return; }
   if (!$('#modal').hidden) cerrarModal();
   else if (!$('#drawer').hidden) { cerrarMenu(); $('#menuBtn').focus(); }
 });
