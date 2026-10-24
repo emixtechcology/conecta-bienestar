@@ -28,7 +28,10 @@ var IC = {
   refresh:'<path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/>',
   save:'<path d="M5 3h11l3 3v15H5z"/><path d="M8 3v5h7V3M8 21v-7h8v7"/>',
   send:'<path d="M4 12l16-8-6 16-2.5-6.5z"/>',
-  tv:'<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>'
+  tv:'<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>',
+  pin:'<path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
+  camera:'<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+  user:'<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/>'
 };
 function ic(n, cls) {
   return '<svg class="' + (cls || 'i') + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + IC[n] + '</svg>';
@@ -78,14 +81,14 @@ var TIPOS = ['Video', 'Reel', 'Arte', 'Carrusel', 'Historia', 'En vivo'];
 var ROL_TXT = { admin: 'Administrador', capturista: 'Capturista', aprobador: 'Aprobador' };
 var ROL_DESC = { admin: 'Acceso total', capturista: 'Sube y edita contenidos', aprobador: 'Revisa y aprueba' };
 var MODS = {
-  inicio: ['Inicio', 'home'], parrilla: ['Parrilla', 'calendar'], contenidos: ['Subir contenido', 'upload'],
+  inicio: ['Inicio', 'home'], parrilla: ['Parrilla', 'calendar'], agenda: ['Agenda', 'pin'], contenidos: ['Subir contenido', 'upload'],
   links: ['Links', 'link'], aprobaciones: ['Aprobaciones', 'shield'], resultados: ['Resultados', 'chart'],
   equipo: ['Equipo', 'users'], config: ['Configuración', 'gear']
 };
 var MODS_ROL = {
-  admin: ['inicio', 'parrilla', 'contenidos', 'links', 'aprobaciones', 'resultados', 'equipo', 'config'],
-  capturista: ['inicio', 'parrilla', 'contenidos', 'links'],
-  aprobador: ['inicio', 'parrilla', 'aprobaciones', 'resultados']
+  admin: ['inicio', 'parrilla', 'agenda', 'contenidos', 'links', 'aprobaciones', 'resultados', 'equipo', 'config'],
+  capturista: ['inicio', 'parrilla', 'agenda', 'contenidos', 'links'],
+  aprobador: ['inicio', 'parrilla', 'agenda', 'aprobaciones', 'resultados']
 };
 var ST = { 'Publicado': 'pub', 'Programado': 'prog', 'En revisión': 'rev', 'Rechazado': 'rech', 'Borrador': 'bor' };
 var PGNAME = { amb: 'Ambas páginas', del: 'Delegación', dto: 'Delegado', none: 'Sin destino' };
@@ -124,7 +127,7 @@ function linkTag(a, t) {
 var S = {
   token: null, user: null, mod: 'inicio', seq: 0,
   week: null, day: null, sel: null, items: {},
-  editItem: null, linkSel: null, res: 'all', file: null, confirmDel: null, rejecting: null
+  editItem: null, prefill: null, aWeek: null, aFiltro: 'todos', aAccion: null, linkSel: null, res: 'all', file: null, confirmDel: null, rejecting: null
 };
 
 function guardarSesion() {
@@ -407,7 +410,7 @@ function go(mod) {
   var v = $('#view'); v.classList.remove('view'); void v.offsetWidth; v.classList.add('view');
   window.scrollTo(0, 0);
   cargando();
-  var fn = { inicio: mInicio, parrilla: mParrilla, contenidos: mContenidos, links: mLinks, aprobaciones: mAprob, resultados: mResultados, equipo: mEquipo, config: mConfig }[mod];
+  var fn = { inicio: mInicio, parrilla: mParrilla, agenda: mAgenda, contenidos: mContenidos, links: mLinks, aprobaciones: mAprob, resultados: mResultados, equipo: mEquipo, config: mConfig }[mod];
   Promise.resolve().then(function () { return fn(seq); }).catch(function (e) { if (seq === S.seq && S.user) errorVista(e); });
 }
 function vigente(seq) { return seq === S.seq; }
@@ -455,7 +458,25 @@ function mInicio(seq) {
             : '<div class="emptyst"><span class="round">' + ic('link') + '</span><b>Nada publicado aún</b><p>Cuando algo se publique aparecerá aquí cuántos links faltan.</p></div>') +
         '</div>' +
       '</section>' +
-      '<section class="row2">' +
+      '<section class="row2 even">' +
+        '<div class="card"><div class="card-h"><div><h2>Agenda</h2><p>Eventos de los próximos 7 días</p></div><button class="round" data-go="agenda" aria-label="Ir a la Agenda">' + ic('arrow') + '</button></div>' +
+          ((d.agenda || []).length ? '<div class="ag-mini">' + d.agenda.map(function (e) {
+            var mio = (e.asignados || []).some(function (a) { return a.id === u.id; });
+            var p = parse(e.fecha);
+            return '<div class="ag-mrow' + (mio ? ' mine' : '') + '"><div class="d">' + p.getDate() + '<small>' + DIAS[p.getDay()] + '</small></div>' +
+              '<div style="min-width:0"><b>' + esc(e.titulo) + '</b><span>' + esc(e.hora) + (e.municipio ? ' · ' + esc(e.municipio) : '') + ' · ' +
+              (e.asignados.length ? esc(e.asignados.map(function (a) { return a.nombre.split(' ')[0]; }).join(', ')) : 'Sin asignar') + '</span></div>' +
+              (mio ? '<span class="tag ok">Te toca</span>' : !e.asignados.length ? '<span class="tag warn">Sin asignar</span>' : '') + '</div>';
+          }).join('') + '</div>'
+          : '<div class="emptyst"><span class="round">' + ic('pin') + '</span><b>Sin eventos próximos</b><p>Registra en la Agenda los eventos donde hay que ir a recoger contenido.</p><button class="btn ghost" data-go="agenda">' + ic('plus') + 'Agendar evento</button></div>') +
+        '</div>' +
+        '<div class="card"><div class="card-h"><div><h2>Actividad reciente</h2><p>Quién hizo qué</p></div></div>' +
+          (d.actividad.length ? '<div class="feed">' + d.actividad.map(function (l) {
+            return '<div><span class="avatar">' + initials(l.usuario) + '</span><div><p><b>' + esc(l.usuario) + '</b> · ' + esc(l.accion).toLowerCase() + (l.detalle ? ': ' + esc(l.detalle) : '') + '</p><small>' + esc(l.fecha) + '</small></div></div>';
+          }).join('') + '</div>' : '<p class="meta">Sin actividad todavía.</p>') +
+        '</div>' +
+      '</section>' +
+      '<section>' +
         '<div class="card"><div class="card-h"><div><h2>Próximas publicaciones</h2><p>Los siguientes 7 días</p></div></div>' +
           (d.proximas.length ? '<div class="tbl"><table class="rt"><thead><tr><th>Contenido</th><th>Fecha</th><th>Dónde</th><th>Estado</th></tr></thead><tbody>' +
             d.proximas.map(function (i) {
@@ -463,11 +484,6 @@ function mInicio(seq) {
                 '<td data-label="Fecha" style="white-space:nowrap">' + fCorta(i.fecha) + ' · ' + esc(i.hora) + '</td><td data-label="Dónde">' + nets(i) + '</td><td data-label="Estado">' + st(i.estado) + '</td></tr>';
             }).join('') + '</tbody></table></div>'
             : '<div class="emptyst"><span class="round">' + ic('calendar') + '</span><b>No hay nada programado</b><p>Lo que se suba para los próximos días aparecerá aquí.</p></div>') +
-        '</div>' +
-        '<div class="card"><div class="card-h"><div><h2>Actividad reciente</h2><p>Quién hizo qué</p></div></div>' +
-          (d.actividad.length ? '<div class="feed">' + d.actividad.map(function (l) {
-            return '<div><span class="avatar">' + initials(l.usuario) + '</span><div><p><b>' + esc(l.usuario) + '</b> · ' + esc(l.accion).toLowerCase() + (l.detalle ? ': ' + esc(l.detalle) : '') + '</p><small>' + esc(l.fecha) + '</small></div></div>';
-          }).join('') + '</div>' : '<p class="meta">Sin actividad todavía.</p>') +
         '</div>' +
       '</section>';
     bindGo();
@@ -589,6 +605,14 @@ function pintarTV() {
       '<div style="min-width:0"><b>' + esc(x.tema) + '</b><span>' + esc(x.hora) + ' · ' + nets(x) + ' · ' + esc(x.estado) + '</span></div></div>';
   }).join('') + mas : '<p class="tv-empty">Sin publicaciones en los próximos 7 días.</p>';
 
+  var agHoy = d.agendaHoy || [];
+  var filasAg = agHoy.length ? agHoy.map(function (e) {
+    var fin = e.horaFin || (pad(Math.min(23, Number(e.hora.slice(0, 2)) + 2)) + e.hora.slice(2));
+    var cuando = e.estado !== 'Pendiente' ? e.estado.toLowerCase() : ahora < e.hora ? 'próximo' : ahora <= fin ? 'en curso' : 'ya pasó';
+    return '<div class="tv-mini' + (cuando === 'en curso' ? ' live' : '') + '"><div class="d">' + esc(e.hora) + '<small>' + esc(cuando) + '</small></div>' +
+      '<div style="min-width:0"><b>' + esc(e.titulo) + '</b><span>' + esc([e.lugar, e.municipio].filter(Boolean).join(' · ') || 'Lugar por confirmar') + ' · ' +
+      (e.asignados.length ? 'cubre ' + esc(e.asignados.map(function (a) { return a.nombre.split(' ')[0]; }).join(', ')) : 'sin asignar') + '</span></div></div>';
+  }).join('') + mas : '<p class="tv-empty">Sin eventos agendados para hoy.</p>';
   var ticker = (d.actividad || []).slice(0, 2).map(function (l) {
     return '<span><b>' + esc(l.usuario) + '</b> ' + esc(l.accion).toLowerCase() + (l.detalle ? ': ' + esc(l.detalle) : '') + '</span>';
   }).join('');
@@ -608,7 +632,8 @@ function pintarTV() {
 
     '<section class="tv-main">' +
       '<div class="tv-col">' +
-        '<div class="card grow" data-total="' + lista.length + '"><div class="card-h"><h2>Hoy · ' + esc(fecha) + '</h2><span class="tag">' + lista.length + '</span></div><div class="tv-list">' + filasHoy + '</div></div>' +
+        '<div class="card grow" data-total="' + lista.length + '"><div class="card-h"><h2>Publicaciones de hoy</h2><span class="tag">' + lista.length + '</span></div><div class="tv-list">' + filasHoy + '</div></div>' +
+        '<div class="card keep" data-total="' + agHoy.length + '"><div class="card-h"><h2>Eventos de hoy</h2><span class="tag">' + agHoy.length + '</span></div>' + filasAg + '</div>' +
       '</div>' +
       '<div class="tv-col">' +
         '<div class="card keep" data-total="' + k.enRevision + '"><div class="card-h"><h2>Por aprobar</h2><span class="tag ' + (d.pendientes.length ? 'warn' : 'ok') + '">' + k.enRevision + '</span></div>' + filasPend + '</div>' +
@@ -634,6 +659,9 @@ function pintarTV() {
   $('#tvRec').onclick = function () { cargarTV(); };
   tickTV();
   requestAnimationFrame(ajustarTV);
+  // La letra puede cargar después: se vuelve a calcular para no recortar de más.
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { requestAnimationFrame(ajustarTV); });
+  setTimeout(ajustarTV, 600);
 }
 
 /** En pantallas anchas todo debe caber: esconde las últimas filas que no entran y dice cuántas faltan. */
@@ -642,6 +670,8 @@ function ajustarTV() {
   $$('#tv [data-total]').forEach(function (card) {
     var filas = Array.prototype.slice.call(card.querySelectorAll('.tv-row, .tv-mini'));
     var masEl = card.querySelector('.tv-more');
+    var cab = card.querySelector('.card-h');
+    if (masEl && cab && masEl.parentNode !== cab) cab.insertBefore(masEl, cab.lastChild); // "y N más" va junto al título, sin ocupar filas
     filas.forEach(function (f) { f.hidden = false; });
     if (masEl) masEl.hidden = true;
     var total = Number(card.dataset.total) || filas.length;
@@ -771,6 +801,202 @@ function pintarParrilla(lista) {
 }
 
 /* =========================================================
+   Módulo: Agenda de eventos y coberturas
+   ========================================================= */
+var AG_ESTADO = { 'Pendiente': 'rev', 'Cubierto': 'pub', 'No se cubrió': 'rech', 'Cancelado': 'bor' };
+function puedeEditarEv(e) { return S.user.rol === 'admin' || e.creadoPor === S.user.id; }
+function asignadoA(e, id) { return (e.asignados || []).some(function (a) { return a.id === id; }); }
+function puedeCerrarEv(e) { return puedeEditarEv(e) || asignadoA(e, S.user.id); }
+function destDeEvento(tipo) {
+  return tipo === 'Evento del delegado' ? { fbDto: true, igDto: true } : { fbDel: true, igDel: true };
+}
+
+function mAgenda(seq) {
+  if (!S.aWeek) S.aWeek = monday(today());
+  return call('agenda', { desde: S.aWeek, hasta: addDays(S.aWeek, 6) }).then(function (d) {
+    if (!vigente(seq)) return;
+    S.agenda = d;
+    pintarAgenda();
+  });
+}
+
+function pintarAgenda() {
+  var d = S.agenda, u = S.user, hoy = today();
+  var todos = d.eventos;
+  var filtros = { todos: function () { return true; }, mios: function (e) { return asignadoA(e, u.id); }, sin: function (e) { return !e.asignados.length && e.estado === 'Pendiente'; } };
+  var lista = todos.filter(filtros[S.aFiltro] || filtros.todos);
+  var pendientes = todos.filter(function (e) { return e.estado === 'Pendiente'; }).length;
+  var sinAsignar = todos.filter(function (e) { return !e.asignados.length && e.estado === 'Pendiente'; }).length;
+  var mios = todos.filter(function (e) { return asignadoA(e, u.id) && e.estado === 'Pendiente'; }).length;
+
+  var dias = [0, 1, 2, 3, 4, 5, 6].map(function (i) {
+    var f = addDays(S.aWeek, i);
+    return { f: f, ev: lista.filter(function (e) { return e.fecha === f; }) };
+  }).filter(function (x) { return x.ev.length || x.f === hoy; });
+
+  var tarjeta = function (e) {
+    var acc = [];
+    var abierta = S.aAccion && S.aAccion.id === e.id ? S.aAccion : null;
+    if (abierta && abierta.tipo === 'borrar') {
+      acc.push('<div class="inline-confirm">¿Eliminar este evento? <button class="btn sm" data-agdelsi="' + e.id + '">Sí, eliminar</button><button class="btn sm ghost" data-agcancel="1">Cancelar</button></div>');
+    } else if (abierta && (abierta.tipo === 'No se cubrió' || abierta.tipo === 'Cancelado')) {
+      acc.push('<div class="stack" style="width:100%"><label class="l" for="agnota">' + (abierta.tipo === 'Cancelado' ? 'Motivo de la cancelación' : '¿Por qué no se cubrió?') + '</label>' +
+        '<textarea id="agnota" placeholder="Escribe el motivo"></textarea><div class="actions"><button class="btn sm" data-agnotasend="' + e.id + '">Guardar</button><button class="btn sm ghost" data-agcancel="1">Cancelar</button></div><p class="status err" id="agnotamsg"></p></div>');
+    } else {
+      // Principales siempre a la vista; las demás en "Más opciones".
+      var extra = [];
+      if (e.estado === 'Pendiente' && puedeCerrarEv(e)) {
+        acc.push('<button class="btn sm" data-agest="Cubierto" data-id="' + e.id + '">' + ic('check') + 'Cubierto</button>');
+        extra.push('<button class="btn sm ghost" data-agnota="No se cubrió" data-id="' + e.id + '">No se cubrió</button>');
+      }
+      if (u.rol !== 'aprobador' && !e.contenidoId && e.estado !== 'Cancelado') {
+        acc.push('<button class="btn sm dark" data-agpub="' + e.id + '">' + ic('upload') + 'Crear publicación</button>');
+      }
+      if (e.contenidoId) acc.push('<button class="btn sm ghost" data-agver="' + e.id + '">' + ic('calendar') + 'Ver publicación</button>');
+      if (e.estado !== 'Pendiente' && puedeCerrarEv(e)) acc.push('<button class="btn sm ghost" data-agest="Pendiente" data-id="' + e.id + '">Reabrir</button>');
+      if (puedeEditarEv(e)) {
+        extra.push('<button class="btn sm ghost" data-agedit="' + e.id + '">' + ic('edit') + 'Editar</button>');
+        if (e.estado === 'Pendiente') extra.push('<button class="btn sm ghost" data-agnota="Cancelado" data-id="' + e.id + '">Cancelar evento</button>');
+        extra.push('<button class="btn sm ghost danger" data-agdel="' + e.id + '">' + ic('trash') + 'Eliminar</button>');
+      }
+      if (extra.length) {
+        var abiertoMas = abierta && abierta.tipo === 'mas';
+        acc.push('<button class="btn sm ghost" data-agmas="' + e.id + '" aria-expanded="' + abiertoMas + '">' + (abiertoMas ? 'Menos opciones' : 'Más opciones') + '</button>');
+        if (abiertoMas) acc.push('<div class="ag-extra">' + extra.join('') + '</div>');
+      }
+    }
+    var lugar = [e.lugar, e.municipio].filter(Boolean).join(' · ');
+    return '<article class="ag-ev' + (asignadoA(e, u.id) && e.estado === 'Pendiente' ? ' mine' : '') + (e.estado === 'Cancelado' ? ' off' : '') + '">' +
+      '<div class="ag-hora"><b>' + esc(e.hora) + '</b>' + (e.horaFin ? '<small>a ' + esc(e.horaFin) + '</small>' : '') + '</div>' +
+      '<div class="ag-body">' +
+        '<div class="ag-top"><span class="tag">' + esc(e.tipo) + '</span><span class="st ' + (AG_ESTADO[e.estado] || 'rev') + '">' + esc(e.estado) + '</span>' +
+          (asignadoA(e, u.id) && e.estado === 'Pendiente' ? '<span class="tag ok">Te toca</span>' : '') +
+          (!e.asignados.length && e.estado === 'Pendiente' ? '<span class="tag warn">Sin asignar</span>' : '') +
+          (e.contenidoId ? '<span class="tag ok">' + ic('link', 'i ic-sm') + 'Publicación ligada</span>' : '') + '</div>' +
+        '<h3>' + esc(e.titulo) + '</h3>' +
+        (lugar ? '<p class="ag-line">' + ic('pin', 'i ic-sm') + esc(lugar) + '</p>' : '') +
+        (e.requiere.length ? '<p class="ag-line">' + ic('camera', 'i ic-sm') + e.requiere.map(function (r) { return '<span class="net">' + esc(r) + '</span>'; }).join(' ') + '</p>' : '') +
+        '<div class="ag-line">' + ic('users', 'i ic-sm') + (e.asignados.length ? '<span class="avs">' + e.asignados.map(function (a) {
+            return '<span class="av-n' + (a.id === u.id ? ' me-av' : '') + '"><span class="avatar">' + initials(a.nombre) + '</span>' + esc(a.nombre) + '</span>';
+          }).join('') + '</span>' : '<span class="meta">Nadie asignado todavía</span>') + '</div>' +
+        (e.contacto ? '<p class="ag-line">' + ic('user', 'i ic-sm') + 'Contacto: ' + esc(e.contacto) + '</p>' : '') +
+        (e.notas ? '<p class="ag-notas">' + esc(e.notas) + '</p>' : '') +
+        (e.nota && e.estado !== 'Pendiente' && e.estado !== 'Cubierto' ? '<div class="note"><b>' + esc(e.estado) + ':</b> ' + esc(e.nota) + '</div>' : '') +
+        '<p class="meta">Agendó ' + esc(e.creadoPorNombre) + '</p>' +
+        (acc.length ? '<div class="actions">' + acc.join('') + '</div>' : '') +
+      '</div></article>';
+  };
+
+  var cuerpo = dias.length ? dias.map(function (x) {
+    var p = parse(x.f);
+    return '<section class="card ag-day' + (x.f === hoy ? ' today' : '') + '"><div class="ag-dh"><b>' + p.getDate() + '</b><div><span>' + DIASL[p.getDay()].replace(/^./, function (c) { return c.toUpperCase(); }) + (x.f === hoy ? ' · hoy' : '') + '</span><small>' + MESL[p.getMonth()] + '</small></div>' +
+      '<span class="tag" style="margin-left:auto">' + x.ev.length + (x.ev.length === 1 ? ' evento' : ' eventos') + '</span></div>' +
+      (x.ev.length ? x.ev.map(tarjeta).join('') : '<p class="meta" style="padding:4px 2px">Sin eventos hoy.</p>') + '</section>';
+  }).join('') : '<div class="card"><div class="emptyst"><span class="round">' + ic('pin') + '</span><b>' + (S.aFiltro === 'todos' ? 'Sin eventos esta semana' : 'Nada con este filtro') + '</b><p>Registra los eventos del delegado o de la Delegación donde hay que ir a recoger fotos o video.</p><button class="btn" id="agNuevo2">' + ic('plus') + 'Agendar evento</button></div></div>';
+
+  $('#view').innerHTML =
+    '<div class="head"><div><h1>Agenda</h1><p class="sub">' + rangoSemana(S.aWeek) + ' · eventos donde hay que ir a recoger contenido</p></div>' +
+      '<div class="actions"><div class="weeknav"><button class="iconbtn" id="aPrev" aria-label="Semana anterior">' + ic('left') + '</button><button class="btn ghost sm" id="aHoy">Hoy</button><button class="iconbtn" id="aNext" aria-label="Semana siguiente">' + ic('right') + '</button></div>' +
+      '<button class="btn" id="agNuevo">' + ic('plus') + 'Agendar evento</button></div></div>' +
+    '<div class="ag-bar"><div class="seg" role="group" aria-label="Filtro">' +
+      [['todos', 'Todos'], ['mios', 'Mis coberturas'], ['sin', 'Sin asignar']].map(function (o) { return '<button data-agf="' + o[0] + '" aria-pressed="' + (S.aFiltro === o[0]) + '">' + o[1] + '</button>'; }).join('') +
+      '</div><div class="legend"><span><b>' + todos.length + '</b> en la semana</span><span><b>' + pendientes + '</b> por cubrir</span>' +
+      (mios ? '<span class="tag ok">' + mios + ' te tocan</span>' : '') + (sinAsignar ? '<span class="tag warn">' + sinAsignar + ' sin asignar</span>' : '') + '</div></div>' +
+    '<div class="ag-list">' + cuerpo + '</div>';
+
+  var recargar = function () { go('agenda'); };
+  $('#aPrev').onclick = function () { S.aWeek = addDays(S.aWeek, -7); recargar(); };
+  $('#aNext').onclick = function () { S.aWeek = addDays(S.aWeek, 7); recargar(); };
+  $('#aHoy').onclick = function () { S.aWeek = monday(today()); recargar(); };
+  $('#agNuevo').onclick = function () { formEvento(null); };
+  var n2 = $('#agNuevo2'); if (n2) n2.onclick = function () { formEvento(null); };
+  $$('[data-agf]').forEach(function (b) { b.onclick = function () { S.aFiltro = b.dataset.agf; S.aAccion = null; pintarAgenda(); }; });
+  var ev = function (id) { return todos.filter(function (e) { return e.id === id; })[0]; };
+  $$('[data-agedit]').forEach(function (b) { b.onclick = function () { formEvento(ev(b.dataset.agedit)); }; });
+  $$('[data-agdel]').forEach(function (b) { b.onclick = function () { S.aAccion = { id: b.dataset.agdel, tipo: 'borrar' }; pintarAgenda(); }; });
+  $$('[data-agcancel]').forEach(function (b) { b.onclick = function () { S.aAccion = null; pintarAgenda(); }; });
+  $$('[data-agmas]').forEach(function (b) {
+    b.onclick = function () { var id = b.dataset.agmas; S.aAccion = S.aAccion && S.aAccion.id === id && S.aAccion.tipo === 'mas' ? null : { id: id, tipo: 'mas' }; pintarAgenda(); };
+  });
+  $$('[data-agdelsi]').forEach(function (b) {
+    b.onclick = function () {
+      b.disabled = true;
+      call('eliminarEvento', { id: b.dataset.agdelsi }).then(function () { S.aAccion = null; toast('Evento eliminado'); recargar(); })
+        .catch(function (e) { toast(e.message); b.disabled = false; });
+    };
+  });
+  $$('[data-agest]').forEach(function (b) {
+    b.onclick = function () {
+      b.disabled = true;
+      call('estadoEvento', { id: b.dataset.id, estado: b.dataset.agest }).then(function (e) { toast(e.estado === 'Cubierto' ? 'Marcado como cubierto' : 'Evento reabierto'); recargar(); })
+        .catch(function (e) { toast(e.message); b.disabled = false; });
+    };
+  });
+  $$('[data-agnota]').forEach(function (b) {
+    b.onclick = function () { S.aAccion = { id: b.dataset.id, tipo: b.dataset.agnota }; pintarAgenda(); var t = $('#agnota'); if (t) t.focus(); };
+  });
+  $$('[data-agnotasend]').forEach(function (b) {
+    b.onclick = function () {
+      var nota = $('#agnota').value.trim();
+      if (!nota) { $('#agnotamsg').textContent = 'Escribe el motivo.'; return; }
+      b.disabled = true;
+      call('estadoEvento', { id: b.dataset.agnotasend, estado: S.aAccion.tipo, nota: nota }).then(function () { S.aAccion = null; toast('Guardado'); recargar(); })
+        .catch(function (e) { $('#agnotamsg').textContent = e.message; b.disabled = false; });
+    };
+  });
+  $$('[data-agpub]').forEach(function (b) {
+    b.onclick = function () {
+      var e = ev(b.dataset.agpub);
+      S.editItem = null;
+      S.prefill = { id: e.id, titulo: e.titulo, tema: e.titulo + (e.municipio && e.titulo.indexOf(e.municipio) === -1 ? ' en ' + e.municipio : ''), fecha: e.fecha < today() ? today() : e.fecha, dest: destDeEvento(e.tipo) };
+      go('contenidos');
+    };
+  });
+  $$('[data-agver]').forEach(function (b) {
+    b.onclick = function () { var e = ev(b.dataset.agver); S.week = monday(e.fecha); S.sel = e.contenidoId; S.day = null; go('parrilla'); };
+  });
+}
+
+/** Ventana para agendar o editar un evento. */
+function formEvento(e) {
+  var c = S.agenda.catalogos, eq = S.agenda.equipo;
+  var asig = (e ? e.asignados : []).map(function (a) { return a.id; });
+  var req = e ? e.requiere : ['Fotos', 'Video'];
+  var rolTxt = { admin: 'Admin', capturista: 'Capturista', aprobador: 'Aprobador' };
+  abrirModal(e ? 'Editar evento' : 'Agendar evento',
+    '<form id="fEv" class="stack" novalidate>' +
+      '<div><label class="l" for="evT">Evento</label><input type="text" id="evT" maxlength="200" value="' + esc(e ? e.titulo : '') + '" placeholder="Ej. Entrega de tarjetas de Pensión Bienestar"></div>' +
+      '<div><label class="l" for="evTipo">Tipo</label><select id="evTipo">' + c.tipos.map(function (t) { return '<option' + (e && e.tipo === t ? ' selected' : '') + '>' + esc(t) + '</option>'; }).join('') + '</select></div>' +
+      '<div class="form"><div><label class="l" for="evF">Fecha</label><input type="date" id="evF" value="' + esc(e ? e.fecha : (S.aWeek && S.aWeek > today() ? S.aWeek : today())) + '"></div>' +
+      '<div><label class="l" for="evH">Hora</label><input type="time" id="evH" value="' + esc(e ? e.hora : '10:00') + '"></div>' +
+      '<div><label class="l" for="evHF">Termina (opcional)</label><input type="time" id="evHF" value="' + esc(e ? e.horaFin : '') + '"></div>' +
+      '<div><label class="l" for="evM">Municipio</label><select id="evM"><option value="">Elige…</option>' + c.municipios.map(function (m) { return '<option' + (e && e.municipio === m ? ' selected' : '') + '>' + esc(m) + '</option>'; }).join('') + '</select></div></div>' +
+      '<div><label class="l" for="evL">Lugar</label><input type="text" id="evL" maxlength="200" value="' + esc(e ? e.lugar : '') + '" placeholder="Ej. Domo de la colonia, cancha ejidal…"></div>' +
+      '<div><span class="l">¿Qué hay que recoger?</span><div class="chips">' + c.requiere.map(function (r) { return '<label class="chk"><input type="checkbox" data-req="' + esc(r) + '"' + (req.indexOf(r) > -1 ? ' checked' : '') + '>' + esc(r) + '</label>'; }).join('') + '</div></div>' +
+      '<div><span class="l">¿Quién va a cubrirlo?</span><div class="chips">' + eq.map(function (p) { return '<label class="chk"><input type="checkbox" data-asig="' + esc(p.id) + '"' + (asig.indexOf(p.id) > -1 ? ' checked' : '') + '>' + esc(p.nombre) + ' <span class="meta" style="font-weight:500">' + rolTxt[p.rol] + '</span></label>'; }).join('') + '</div><p class="meta" style="margin-top:6px">A quien asignes le llega un correo y lo ve en su Inicio.</p></div>' +
+      '<div><label class="l" for="evC">Contacto en el lugar (opcional)</label><input type="text" id="evC" maxlength="200" value="' + esc(e ? e.contacto : '') + '" placeholder="Nombre y teléfono"></div>' +
+      '<div><label class="l" for="evN">Notas (opcional)</label><textarea id="evN" placeholder="Indicaciones, tomas importantes, invitados…">' + esc(e ? e.notas : '') + '</textarea></div>' +
+      '<button class="btn" type="submit" id="evG">' + ic('save') + (e ? 'Guardar cambios' : 'Agendar') + '</button><p class="status err" id="evMsg"></p>' +
+    '</form>');
+  $('#fEv').onsubmit = function (ev) {
+    ev.preventDefault();
+    var datos = {
+      id: e ? e.id : null, titulo: $('#evT').value.trim(), tipo: $('#evTipo').value, fecha: $('#evF').value, hora: $('#evH').value,
+      horaFin: $('#evHF').value, municipio: $('#evM').value, lugar: $('#evL').value, contacto: $('#evC').value, notas: $('#evN').value,
+      requiere: $$('[data-req]').filter(function (x) { return x.checked; }).map(function (x) { return x.dataset.req; }),
+      asignados: $$('[data-asig]').filter(function (x) { return x.checked; }).map(function (x) { return x.dataset.asig; })
+    };
+    if (!datos.titulo) { $('#evMsg').textContent = 'Escribe de qué se trata el evento.'; $('#evT').focus(); return; }
+    if (!datos.fecha || !datos.hora) { $('#evMsg').textContent = 'Escribe la fecha y la hora.'; return; }
+    $('#evG').disabled = true;
+    call('guardarEvento', datos).then(function (r) {
+      cerrarModal(); toast(e ? 'Evento actualizado' : 'Evento agendado');
+      S.aWeek = monday(r.fecha); go('agenda');
+    }).catch(function (err) { $('#evMsg').textContent = err.message; $('#evG').disabled = false; });
+  };
+}
+
+/* =========================================================
    Módulo: Subir / editar contenido
    ========================================================= */
 function destToggles(dest, prefijo) {
@@ -816,16 +1042,18 @@ function subirArchivo(file, onAvance) {
 
 function mContenidos() {
   var it = S.editItem, u = S.user;
-  var dest = it ? it.dest : {};
+  var pre = it ? null : S.prefill; S.prefill = null;
+  var dest = it ? it.dest : pre ? pre.dest : {};
   $('#view').innerHTML =
     '<div class="head"><div><h1>' + (it ? 'Editar contenido' : 'Subir contenido') + '</h1><p class="sub">' +
       (it ? 'Al guardar vuelve a revisión y un aprobador lo revisa de nuevo.' : 'Se avisa por correo a los aprobadores; con que uno lo apruebe queda programado.') + '</p></div>' +
       (it ? '<button class="btn ghost" id="cancelEdit">Cancelar edición</button>' : '') + '</div>' +
+    (pre ? '<div class="banner">' + ic('pin') + '<span>Publicación del evento <b>' + esc(pre.titulo) + '</b>. Al enviarla queda ligada al evento y este se marca como cubierto.</span></div>' : '') +
     '<form class="row2 even" id="upForm" novalidate>' +
       '<div class="card"><h2>Datos de la publicación</h2><div class="form">' +
-        '<div class="full"><label class="l" for="f-tema">Tema</label><input type="text" id="f-tema" maxlength="200" value="' + esc(it ? it.tema : '') + '" placeholder="Ej. Entrega de la Pensión Adultos Mayores en Teapa"></div>' +
+        '<div class="full"><label class="l" for="f-tema">Tema</label><input type="text" id="f-tema" maxlength="200" value="' + esc(it ? it.tema : pre ? pre.tema : '') + '" placeholder="Ej. Entrega de la Pensión Adultos Mayores en Teapa"></div>' +
         '<div><label class="l" for="f-tipo">Formato</label><select id="f-tipo">' + TIPOS.map(function (t) { return '<option' + (it && it.tipo === t ? ' selected' : '') + '>' + t + '</option>'; }).join('') + '</select></div>' +
-        '<div><label class="l" for="f-fecha">Fecha</label><input type="date" id="f-fecha" value="' + esc(it ? it.fecha : today()) + '"></div>' +
+        '<div><label class="l" for="f-fecha">Fecha</label><input type="date" id="f-fecha" value="' + esc(it ? it.fecha : pre ? pre.fecha : today()) + '"></div>' +
         '<div><label class="l" for="f-hora">Hora</label><input type="time" id="f-hora" value="' + esc(it ? it.hora : '10:00') + '"></div>' +
         '<div><label class="l" for="f-autor">Subido por</label><input type="text" id="f-autor" value="' + esc(it ? it.autorNombre : u.nombre) + '" disabled></div>' +
         '<div class="full"><span class="l">¿Dónde se va a publicar?</span>' + destToggles(dest, 'f') + '</div>' +
@@ -867,7 +1095,8 @@ function mContenidos() {
     var datos = {
       id: it ? it.id : null, tema: $('#f-tema').value.trim(), tipo: $('#f-tipo').value,
       fecha: $('#f-fecha').value, hora: $('#f-hora').value, dest: leerDest('f'), copy: $('#f-copy').value, borrador: borrador,
-      archivo: it && it.archivo ? it.archivo : null
+      archivo: it && it.archivo ? it.archivo : null,
+      eventoId: pre ? pre.id : ''
     };
     if (!datos.tema) { msg.textContent = 'Escribe el tema de la publicación.'; $('#f-tema').focus(); return; }
     if (!datos.fecha) { msg.textContent = 'Elige la fecha.'; return; }
@@ -1241,8 +1470,9 @@ function pintarConfig(c) {
         '<dt>Base de datos</dt><dd><a target="_blank" rel="noopener" href="' + esc(c.hojaUrl) + '">Abrir hoja de cálculo</a></dd>' +
         (c.carpetaUrl ? '<dt>Archivos</dt><dd><a target="_blank" rel="noopener" href="' + esc(c.carpetaUrl) + '">Abrir carpeta en Drive</a></dd>' : '') +
         '<dt>Métricas automáticas</dt><dd>' + (c.tareaMensual ? '<span class="tag ok">Programadas · día 1, 6:00</span>' : '<span class="tag warn">Sin programar</span>') + '</dd>' +
+        '<dt>Recordatorio de coberturas</dt><dd>' + (c.tareaDiaria ? '<span class="tag ok">Diario · 7:00</span>' : '<span class="tag warn">Sin programar</span>') + '</dd>' +
         '<dt>Versión</dt><dd>' + esc(c.version) + '</dd></dl>' +
-        '<div class="actions"><button class="btn ghost" id="sCopy">' + ic('copy') + 'Copiar link de la app</button>' + (c.appUrl && c.appUrl !== linkApp() ? '<button class="btn ghost" id="sFix">Usar este link para los avisos</button>' : '') + '<button class="btn ghost" id="sTask">' + ic('refresh') + 'Reprogramar tarea mensual</button></div></div>' +
+        '<div class="actions"><button class="btn ghost" id="sCopy">' + ic('copy') + 'Copiar link de la app</button>' + (c.appUrl && c.appUrl !== linkApp() ? '<button class="btn ghost" id="sFix">Usar este link para los avisos</button>' : '') + '<button class="btn ghost" id="sTask">' + ic('refresh') + 'Reprogramar tareas automáticas</button></div></div>' +
     '</section>';
 
   var guardarCfg = function (datos, ok) {
