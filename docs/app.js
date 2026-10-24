@@ -14,6 +14,10 @@ var IC = {
   users:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14.5c2.3.3 3.9 2 4.5 4.5"/>',
   gear:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
   play:'<path d="M8 5.5v13l11-6.5z" fill="currentColor" stroke="none"/>',
+  download:'<path d="M12 4v11M7 10l5 5 5-5M4 20h16"/>',
+  folder:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  search:'<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>',
+  image:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5L5 20"/>',
   copy:'<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>',
   spark:'<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.7 1.8 1.8.7-1.8.7L19 20l-.7-1.8-1.8-.7 1.8-.7z"/>',
   arrow:'<path d="M7 17L17 7M8 7h9v9"/>',
@@ -77,17 +81,17 @@ var CUENTAS = [
   { k: 'fbDto', pagina: 'Delegado', red: 'Facebook', ab: 'FB', re: /^https?:\/\/(www\.|m\.|web\.)?(facebook\.com|fb\.watch|fb\.com)\//i },
   { k: 'igDto', pagina: 'Delegado', red: 'Instagram', ab: 'IG', re: /^https?:\/\/(www\.)?instagram\.com\//i }
 ];
-var TIPOS = ['Video', 'Reel', 'Carrusel', 'Historia', 'En vivo', 'Imagen'];
+var TIPOS = ['Video', 'Reel', 'Arte', 'Carrusel', 'Historia', 'En vivo'];
 var ROL_TXT = { admin: 'Administrador', capturista: 'Capturista', aprobador: 'Aprobador' };
 var ROL_DESC = { admin: 'Acceso total', capturista: 'Sube y edita contenidos', aprobador: 'Revisa y aprueba' };
 var MODS = {
-  inicio: ['Inicio', 'home'], parrilla: ['Parrilla', 'calendar'], agenda: ['Agenda', 'pin'], contenidos: ['Subir contenido', 'upload'],
+  inicio: ['Inicio', 'home'], parrilla: ['Parrilla', 'calendar'], agenda: ['Agenda', 'pin'], material: ['Material', 'image'], contenidos: ['Subir contenido', 'upload'],
   links: ['Links', 'link'], aprobaciones: ['Aprobaciones', 'shield'], resultados: ['Resultados', 'chart'],
   equipo: ['Equipo', 'users'], config: ['Configuración', 'gear']
 };
 var MODS_ROL = {
-  admin: ['inicio', 'parrilla', 'agenda', 'contenidos', 'links', 'aprobaciones', 'resultados', 'equipo', 'config'],
-  capturista: ['inicio', 'parrilla', 'agenda', 'contenidos', 'links'],
+  admin: ['inicio', 'parrilla', 'agenda', 'material', 'contenidos', 'links', 'aprobaciones', 'resultados', 'equipo', 'config'],
+  capturista: ['inicio', 'parrilla', 'agenda', 'material', 'contenidos', 'links'],
   aprobador: ['inicio', 'parrilla', 'agenda', 'aprobaciones', 'resultados']
 };
 var ST = { 'Publicado': 'pub', 'Programado': 'prog', 'En revisión': 'rev', 'Rechazado': 'rech', 'Borrador': 'bor' };
@@ -127,7 +131,7 @@ function linkTag(a, t) {
 var S = {
   token: null, user: null, mod: 'inicio', seq: 0,
   week: null, day: null, sel: null, items: {},
-  editItem: null, prefill: null, aWeek: null, aFiltro: 'todos', aAccion: null, linkSel: null, res: 'all', file: null, confirmDel: null, rejecting: null
+  editItem: null, prefill: null, albumSel: null, matQ: '', matPrefill: null, matBorrar: null, lQ: '', aWeek: null, aFiltro: 'todos', aAccion: null, linkSel: null, res: 'all', file: null, confirmDel: null, rejecting: null
 };
 
 function guardarSesion() {
@@ -292,6 +296,18 @@ function dl(a, b) {
 }
 
 /* Vista previa del archivo en Drive */
+/* Enlaces de Drive */
+function driveVer(id) { return 'https://drive.google.com/file/d/' + encodeURIComponent(id) + '/view'; }
+function driveBajar(id) { return 'https://drive.google.com/uc?export=download&id=' + encodeURIComponent(id); }
+function driveCarpeta(id) { return 'https://drive.google.com/drive/folders/' + encodeURIComponent(id); }
+function driveMini(id, w) { return 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(id) + '&sz=w' + (w || 400); }
+function pesoTxt(b) { b = Number(b) || 0; return b >= 1073741824 ? (b / 1073741824).toFixed(1) + ' GB' : b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB'; }
+function botonesDrive(id, sm) {
+  var c = 'btn ' + (sm ? 'sm ' : '') + 'ghost';
+  return '<a class="' + c + '" target="_blank" rel="noopener" href="' + driveBajar(id) + '">' + ic('download') + 'Descargar</a>' +
+    '<a class="' + c + '" target="_blank" rel="noopener" href="' + driveVer(id) + '">' + ic('arrow') + 'Abrir en Drive</a>';
+}
+
 function mediaHtml(archivo, tipo, modo) {
   if (!archivo) {
     return '<div class="thumb' + (modo === 'sm' ? ' sm' : '') + '"><span class="tag kind">' + esc(tipo || 'Sin archivo') + '</span><span class="play">' + ic('play') + '</span></div>';
@@ -306,12 +322,12 @@ function mediaHtml(archivo, tipo, modo) {
   }
   return '<div style="flex:1 1 220px;max-width:280px;min-width:0"><iframe class="frame" title="Vista previa del video" allow="autoplay" src="https://drive.google.com/file/d/' + encodeURIComponent(archivo.id) + '/preview"></iframe></div>';
 }
-function abrirPreview(id, mime) {
+function abrirPreview(id, mime, titulo, extra) {
   var img = /^image\//.test(mime || '');
-  abrirModal('Vista previa',
-    (img ? '<img alt="Vista previa" style="width:100%;border-radius:16px" src="https://drive.google.com/thumbnail?id=' + encodeURIComponent(id) + '&sz=w1200">'
-         : '<iframe class="frame" title="Vista previa del video" allow="autoplay" src="https://drive.google.com/file/d/' + encodeURIComponent(id) + '/preview"></iframe>') +
-    '<a class="btn ghost" target="_blank" rel="noopener" href="https://drive.google.com/file/d/' + encodeURIComponent(id) + '/view">Abrir en Drive</a>');
+  abrirModal(titulo || 'Vista previa',
+    (img ? '<img alt="Vista previa" style="width:100%;border-radius:16px;background:var(--sunk)" src="' + driveMini(id, 1600) + '">'
+         : '<iframe class="frame' + (mime && /video/.test(mime) ? ' wide' : '') + '" title="Vista previa del video" allow="autoplay" src="https://drive.google.com/file/d/' + encodeURIComponent(id) + '/preview"></iframe>') +
+    '<div class="actions">' + botonesDrive(id) + (extra || '') + '</div>');
 }
 function bindPreviews() {
   $$('[data-prev]').forEach(function (b) { b.onclick = function () { abrirPreview(b.dataset.prev, b.dataset.mime); }; });
@@ -410,7 +426,7 @@ function go(mod) {
   var v = $('#view'); v.classList.remove('view'); void v.offsetWidth; v.classList.add('view');
   window.scrollTo(0, 0);
   cargando();
-  var fn = { inicio: mInicio, parrilla: mParrilla, agenda: mAgenda, contenidos: mContenidos, links: mLinks, aprobaciones: mAprob, resultados: mResultados, equipo: mEquipo, config: mConfig }[mod];
+  var fn = { inicio: mInicio, parrilla: mParrilla, agenda: mAgenda, material: mMaterial, contenidos: mContenidos, links: mLinks, aprobaciones: mAprob, resultados: mResultados, equipo: mEquipo, config: mConfig }[mod];
   Promise.resolve().then(function () { return fn(seq); }).catch(function (e) { if (seq === S.seq && S.user) errorVista(e); });
 }
 function vigente(seq) { return seq === S.seq; }
@@ -749,6 +765,7 @@ function pintarParrilla(lista) {
       if (u.rol !== 'aprobador' && sel.estado === 'Programado') acts.push('<button class="btn sm ghost" id="bPub">' + ic('check') + 'Marcar publicado</button>');
       if (u.rol !== 'aprobador' && (sel.estado === 'Programado' || sel.estado === 'Publicado') && sel.fecha <= hoy) acts.push('<button class="btn sm dark" id="bLinks">' + ic('link') + 'Capturar links</button>');
       if (sel.estado === 'En revisión' && u.rol !== 'capturista') acts.push('<button class="btn sm dark" data-go="aprobaciones">' + ic('shield') + 'Ir a aprobar</button>');
+      if (sel.archivo) acts.push('<a class="btn sm ghost" target="_blank" rel="noopener" href="' + driveBajar(sel.archivo.id) + '">' + ic('download') + 'Descargar</a>');
       if (u.rol === 'capturista' && !puedeEditar(sel)) acts.push('<span class="meta">Solo puedes editar lo que tú subiste.</span>');
     }
     detalle = '<div class="detail">' + mediaHtml(sel.archivo, sel.tipo) +
@@ -853,6 +870,7 @@ function pintarAgenda() {
         acc.push('<button class="btn sm dark" data-agpub="' + e.id + '">' + ic('upload') + 'Crear publicación</button>');
       }
       if (e.contenidoId) acc.push('<button class="btn sm ghost" data-agver="' + e.id + '">' + ic('calendar') + 'Ver publicación</button>');
+      if (u.rol !== 'aprobador' && e.estado !== 'Cancelado' && e.fecha <= today()) acc.push('<button class="btn sm ghost" data-agmat="' + e.id + '">' + ic('image') + 'Subir material</button>');
       if (e.estado !== 'Pendiente' && puedeCerrarEv(e)) acc.push('<button class="btn sm ghost" data-agest="Pendiente" data-id="' + e.id + '">Reabrir</button>');
       if (puedeEditarEv(e)) {
         extra.push('<button class="btn sm ghost" data-agedit="' + e.id + '">' + ic('edit') + 'Editar</button>');
@@ -952,6 +970,9 @@ function pintarAgenda() {
       go('contenidos');
     };
   });
+  $$('[data-agmat]').forEach(function (b) {
+    b.onclick = function () { var e = ev(b.dataset.agmat); S.albumSel = null; S.matPrefill = { titulo: e.titulo, fecha: e.fecha, municipio: e.municipio, eventoId: e.id }; go('material'); };
+  });
   $$('[data-agver]').forEach(function (b) {
     b.onclick = function () { var e = ev(b.dataset.agver); S.week = monday(e.fecha); S.sel = e.contenidoId; S.day = null; go('parrilla'); };
   });
@@ -997,6 +1018,161 @@ function formEvento(e) {
 }
 
 /* =========================================================
+   Módulo: Material grabado (administrador y capturistas)
+   ========================================================= */
+function mMaterial(seq) {
+  if (S.albumSel) {
+    return call('album', { id: S.albumSel }).then(function (d) { if (vigente(seq)) pintarAlbum(d); })
+      .catch(function (e) { if (/No se encontró/.test(e.message)) { S.albumSel = null; return mMaterial(seq); } throw e; });
+  }
+  return call('albumes', { q: S.matQ }).then(function (d) {
+    if (!vigente(seq)) return;
+    S.matData = d;
+    pintarAlbumes(d);
+    if (S.matPrefill) { var p = S.matPrefill; S.matPrefill = null; formAlbum(null, p); }
+  });
+}
+
+function portadaHtml(a) {
+  if (!a.portada) return '<div class="mat-cover vacio">' + ic('image') + '<span>Sin archivos</span></div>';
+  var esVideo = !/^image\//.test(a.portada.mime);
+  return '<div class="mat-cover"><img alt="" loading="lazy" src="' + driveMini(a.portada.archivoId, 600) + '" onerror="this.remove()">' + (esVideo ? '<span class="play">' + ic('play') + '</span>' : '') + '</div>';
+}
+
+function pintarAlbumes(d) {
+  var tarjetas = d.albumes.map(function (a) {
+    return '<button class="mat-card" data-album="' + a.id + '">' + portadaHtml(a) +
+      '<div class="mat-info"><b>' + esc(a.titulo) + '</b><span>' + fCorta(a.fecha) + (a.municipio ? ' · ' + esc(a.municipio) : '') + '</span>' +
+      '<span class="mat-cnt">' + a.fotos + (a.fotos === 1 ? ' foto' : ' fotos') + ' · ' + a.videos + (a.videos === 1 ? ' video' : ' videos') + (a.tamano ? ' · ' + pesoTxt(a.tamano) : '') + '</span>' +
+      (a.eventoTitulo ? '<span class="tag">' + ic('pin', 'i ic-sm') + 'Evento de la agenda</span>' : '') + '</div></button>';
+  }).join('');
+  $('#view').innerHTML =
+    '<div class="head"><div><h1>Material</h1><p class="sub">Todas las fotos y videos que se graban, ordenados por álbum. Se guardan en Drive.</p></div>' +
+      '<button class="btn" id="mNuevo">' + ic('plus') + 'Nuevo álbum</button></div>' +
+    '<div class="searchbox wide">' + ic('search') + '<input type="search" id="mBuscar" placeholder="Buscar por evento, municipio o fecha" value="' + esc(S.matQ) + '" aria-label="Buscar álbum"></div>' +
+    (d.albumes.length ? '<div class="mat-grid">' + tarjetas + '</div>'
+      : '<div class="card"><div class="emptyst"><span class="round">' + ic('image') + '</span><b>' + (S.matQ ? 'Nada coincide con la búsqueda' : 'Aún no hay material') + '</b><p>Crea un álbum por evento o por día y sube ahí todas las fotos y videos que grabaron.</p><button class="btn" id="mNuevo2">' + ic('plus') + 'Nuevo álbum</button></div></div>');
+  $('#mNuevo').onclick = function () { formAlbum(null); };
+  var n2 = $('#mNuevo2'); if (n2) n2.onclick = function () { formAlbum(null); };
+  var t = null;
+  $('#mBuscar').oninput = function () {
+    var v = this.value; clearTimeout(t);
+    t = setTimeout(function () { S.matQ = v; go('material'); setTimeout(function () { var b = $('#mBuscar'); if (b) { b.focus(); b.setSelectionRange(v.length, v.length); } }, 300); }, 400);
+  };
+  $$('[data-album]').forEach(function (b) { b.onclick = function () { S.albumSel = b.dataset.album; go('material'); }; });
+}
+
+function formAlbum(a, pre) {
+  var d = S.matData || { eventos: [], municipios: [] };
+  var v = a || pre || {};
+  var munis = d.municipios.length ? d.municipios : (S.agenda && S.agenda.catalogos.municipios) || [];
+  abrirModal(a ? 'Editar álbum' : 'Nuevo álbum',
+    '<form id="fAl" class="stack" novalidate>' +
+      '<div><label class="l" for="alT">Nombre del álbum</label><input type="text" id="alT" maxlength="150" value="' + esc(v.titulo || '') + '" placeholder="Ej. Entrega de tarjetas en Centla"></div>' +
+      '<div class="form"><div><label class="l" for="alF">Fecha de grabación</label><input type="date" id="alF" value="' + esc(v.fecha || today()) + '"></div>' +
+      '<div><label class="l" for="alM">Municipio</label><select id="alM"><option value="">Elige…</option>' + munis.map(function (m) { return '<option' + (v.municipio === m ? ' selected' : '') + '>' + esc(m) + '</option>'; }).join('') + '</select></div></div>' +
+      '<div><label class="l" for="alE">Evento de la agenda (opcional)</label><select id="alE"><option value="">Ninguno</option>' +
+        d.eventos.map(function (e) { return '<option value="' + esc(e.id) + '"' + (v.eventoId === e.id ? ' selected' : '') + '>' + esc(fCorta(e.fecha) + ' · ' + e.titulo) + '</option>'; }).join('') + '</select></div>' +
+      '<div><label class="l" for="alN">Notas (opcional)</label><textarea id="alN" placeholder="Quién grabó, cámara, tomas destacadas…">' + esc(v.notas || '') + '</textarea></div>' +
+      '<button class="btn" type="submit" id="alG">' + ic('save') + (a ? 'Guardar cambios' : 'Crear álbum y subir archivos') + '</button><p class="status err" id="alMsg"></p></form>');
+  $('#fAl').onsubmit = function (e) {
+    e.preventDefault();
+    var datos = { id: a ? a.id : null, titulo: $('#alT').value.trim(), fecha: $('#alF').value, municipio: $('#alM').value, eventoId: $('#alE').value, notas: $('#alN').value };
+    if (!datos.titulo) { $('#alMsg').textContent = 'Escribe el nombre del álbum.'; $('#alT').focus(); return; }
+    if (!datos.fecha) { $('#alMsg').textContent = 'Elige la fecha.'; return; }
+    $('#alG').disabled = true;
+    call('guardarAlbum', datos).then(function (r) { cerrarModal(); toast(a ? 'Álbum actualizado' : 'Álbum creado'); S.albumSel = r.album.id; go('material'); })
+      .catch(function (err) { $('#alMsg').textContent = err.message; $('#alG').disabled = false; });
+  };
+}
+
+function pintarAlbum(d) {
+  var a = d.album, u = S.user;
+  var puede = u.rol === 'admin' || a.creadoPor === u.id;
+  var tiles = d.archivos.map(function (m) {
+    var img = /^image\//.test(m.mime);
+    return '<figure class="tile"><button class="tile-btn" data-mprev="' + m.id + '" aria-label="Ver ' + esc(m.nombre) + '">' +
+      '<img alt="" loading="lazy" src="' + driveMini(m.archivoId, 500) + '" onerror="this.remove()">' + (img ? '' : '<span class="play">' + ic('play') + '</span>') + '</button>' +
+      '<figcaption><span title="' + esc(m.nombre) + '">' + esc(m.nombre) + '</span><a href="' + driveBajar(m.archivoId) + '" target="_blank" rel="noopener" aria-label="Descargar ' + esc(m.nombre) + '">' + ic('download') + '</a></figcaption></figure>';
+  }).join('');
+  var borrar = S.matBorrar === a.id
+    ? '<div class="inline-confirm">¿Eliminar el álbum y sus ' + a.total + ' archivos? Se mandan a la papelera de Drive. <button class="btn sm" id="alBorrarSi">Sí, eliminar</button><button class="btn sm ghost" id="alBorrarNo">Cancelar</button></div>' : '';
+
+  $('#view').innerHTML =
+    '<div class="head"><div><button class="linkbtn" id="alVolver">' + ic('left', 'i ic-sm') + ' Material</button><h1>' + esc(a.titulo) + '</h1>' +
+      '<p class="sub">' + fLarga(a.fecha) + (a.municipio ? ' · ' + esc(a.municipio) : '') + ' · ' + a.fotos + (a.fotos === 1 ? ' foto' : ' fotos') + ', ' + a.videos + (a.videos === 1 ? ' video' : ' videos') + (a.tamano ? ' · ' + pesoTxt(a.tamano) : '') + ' · creó ' + esc(a.creadoPorNombre) + '</p>' +
+      (a.eventoTitulo ? '<p class="meta" style="margin-top:4px">' + ic('pin', 'i ic-sm') + 'Evento: ' + esc(a.eventoTitulo) + '</p>' : '') +
+      (a.notas ? '<p class="meta" style="margin-top:4px">' + esc(a.notas) + '</p>' : '') + '</div>' +
+      '<div class="actions">' + (a.carpetaId ? '<a class="btn ghost" target="_blank" rel="noopener" href="' + driveCarpeta(a.carpetaId) + '">' + ic('folder') + 'Abrir carpeta en Drive</a>' : '') +
+      (puede ? '<button class="btn ghost" id="alEditar">' + ic('edit') + 'Editar</button><button class="btn ghost danger" id="alBorrar">' + ic('trash') + 'Eliminar</button>' : '') + '</div></div>' + borrar +
+    '<div class="card"><label class="drop" for="mFiles" id="mDrop"><span class="round">' + ic('upload') + '</span><b style="color:var(--ink)">Toca o arrastra aquí las fotos y videos</b>' +
+      '<span>Puedes elegir muchos a la vez. Hasta 1 GB cada uno. Se guardan en la carpeta del álbum en Drive.</span><input type="file" id="mFiles" accept="video/*,image/*" multiple></label>' +
+      '<div class="upq" id="mCola" hidden></div></div>' +
+    (d.archivos.length ? '<div class="tiles">' + tiles + '</div>'
+      : '<p class="meta" style="text-align:center">Todavía no hay archivos en este álbum.</p>') +
+    (a.carpetaId && d.archivos.length ? '<p class="meta" style="text-align:center">Para descargar todo de una vez: <b>Abrir carpeta en Drive</b> y ahí <b>Descargar</b> (Drive lo entrega en un .zip).</p>' : '');
+
+  $('#alVolver').onclick = function () { S.albumSel = null; S.matBorrar = null; go('material'); };
+  var on = function (id, fn) { var x = $('#' + id); if (x) x.onclick = fn; };
+  on('alEditar', function () { formAlbum(a); });
+  on('alBorrar', function () { S.matBorrar = a.id; pintarAlbum(d); });
+  on('alBorrarNo', function () { S.matBorrar = null; pintarAlbum(d); });
+  on('alBorrarSi', function () {
+    this.disabled = true;
+    call('eliminarAlbum', { id: a.id }).then(function () { S.albumSel = null; S.matBorrar = null; toast('Álbum eliminado'); go('material'); })
+      .catch(function (e) { toast(e.message); });
+  });
+  $$('[data-mprev]').forEach(function (b) {
+    b.onclick = function () {
+      var m = d.archivos.filter(function (x) { return x.id === b.dataset.mprev; })[0];
+      var puedeBorrar = u.rol === 'admin' || m.subidoPor === u.id;
+      abrirPreview(m.archivoId, m.mime, m.nombre, puedeBorrar ? '<button class="btn ghost danger" id="mDel">' + ic('trash') + 'Eliminar</button>' : '');
+      $('#mBody').insertAdjacentHTML('beforeend', '<p class="meta">' + pesoTxt(m.tamano) + ' · subió ' + esc(m.subidoPorNombre) + ' · ' + esc(m.creado) + '</p>');
+      var del = $('#mDel');
+      if (del) del.onclick = function () {
+        if (del.dataset.ok !== '1') { del.dataset.ok = '1'; del.innerHTML = ic('trash') + '¿Seguro? Toca otra vez'; return; }
+        del.disabled = true;
+        call('eliminarMaterial', { id: m.id }).then(function () { cerrarModal(); toast('Archivo eliminado'); go('material'); })
+          .catch(function (e) { toast(e.message); del.disabled = false; });
+      };
+    };
+  });
+
+  // Subida de varios archivos, uno tras otro, con avance por archivo
+  var input = $('#mFiles'), drop = $('#mDrop');
+  function subirVarios(files) {
+    files = Array.prototype.slice.call(files || []).filter(function (f) { return /^(video|image)\//.test(f.type); });
+    if (!files.length) { toast('Elige fotos o videos.'); return; }
+    var cola = $('#mCola'); cola.hidden = false;
+    cola.innerHTML = files.map(function (f, i) {
+      return '<div class="upi" id="up' + i + '"><span class="n">' + esc(f.name) + '</span><span class="s">' + pesoTxt(f.size) + '</span><div class="bar"><i></i></div><span class="e" aria-live="polite">En espera</span></div>';
+    }).join('');
+    drop.classList.add('busy');
+    var ok = 0, mal = 0;
+    var siguiente = function (i) {
+      if (i >= files.length) {
+        drop.classList.remove('busy');
+        toast(ok + (ok === 1 ? ' archivo subido' : ' archivos subidos') + (mal ? ' · ' + mal + ' con error' : ''));
+        setTimeout(function () { if (S.mod === 'material' && S.albumSel === a.id) go('material'); }, mal ? 2500 : 600);
+        return;
+      }
+      var f = files[i], fila = $('#up' + i);
+      if (f.size > 1024 * 1024 * 1024) { fila.querySelector('.e').textContent = 'Pesa más de 1 GB'; fila.classList.add('err'); mal++; return siguiente(i + 1); }
+      fila.querySelector('.e').textContent = 'Subiendo…';
+      subirArchivo(f, function (p) { fila.querySelector('i').style.width = Math.round(p * 100) + '%'; fila.querySelector('.e').textContent = Math.round(p * 100) + '%'; }, a.id)
+        .then(function () { ok++; fila.classList.add('ok'); fila.querySelector('.e').textContent = 'Listo'; })
+        .catch(function (e) { mal++; fila.classList.add('err'); fila.querySelector('.e').textContent = e.message; })
+        .then(function () { siguiente(i + 1); });
+    };
+    siguiente(0);
+  }
+  input.onchange = function () { subirVarios(input.files); input.value = ''; };
+  drop.addEventListener('dragover', function (e) { e.preventDefault(); drop.classList.add('over'); });
+  drop.addEventListener('dragleave', function () { drop.classList.remove('over'); });
+  drop.addEventListener('drop', function (e) { e.preventDefault(); drop.classList.remove('over'); subirVarios(e.dataTransfer.files); });
+}
+
+/* =========================================================
    Módulo: Subir / editar contenido
    ========================================================= */
 function destToggles(dest, prefijo) {
@@ -1020,8 +1196,8 @@ function aBase64(blob) {
   });
 }
 /** Sube un archivo a Drive en partes; informa el avance con onAvance(0..1). */
-function subirArchivo(file, onAvance) {
-  return call('iniciarSubida', { nombre: file.name, mime: file.type, tamano: file.size }).then(function (r) {
+function subirArchivo(file, onAvance, albumId) {
+  return call('iniciarSubida', { nombre: file.name, mime: file.type, tamano: file.size, albumId: albumId || '' }).then(function (r) {
     var inicio = 0;
     function siguiente(intentos) {
       var pedazo = file.slice(inicio, inicio + r.parte);
@@ -1136,21 +1312,56 @@ function mLinks(seq) {
     pintarLinks(lista);
   });
 }
+function formDirecta() {
+  var ahora = new Date();
+  abrirModal('Publicación sin programar',
+    '<form id="fDir" class="stack" novalidate><p class="meta">Para lo que se sube directo a redes (el contenido diario) y no pasó por la parrilla. Se registra como publicada para que pegues sus links.</p>' +
+      '<div><label class="l" for="dTema">Tema</label><input type="text" id="dTema" maxlength="200" placeholder="Ej. Pago de la Pensión Adultos Mayores en Teapa"></div>' +
+      '<div class="form"><div><label class="l" for="dTipo">Formato</label><select id="dTipo">' + TIPOS.map(function (t) { return '<option>' + t + '</option>'; }).join('') + '</select></div>' +
+      '<div><label class="l" for="dFecha">Fecha</label><input type="date" id="dFecha" value="' + today() + '"></div>' +
+      '<div><label class="l" for="dHora">Hora</label><input type="time" id="dHora" value="' + hhmm(ahora) + '"></div></div>' +
+      '<div><span class="l">¿Dónde se publicó?</span>' + destToggles({}, 'dd') + '</div>' +
+      '<button class="btn" type="submit" id="dBtn">' + ic('check') + 'Registrar y pegar links</button><p class="status err" id="dMsg"></p></form>');
+  $('#fDir').onsubmit = function (e) {
+    e.preventDefault();
+    var datos = { tema: $('#dTema').value.trim(), tipo: $('#dTipo').value, fecha: $('#dFecha').value, hora: $('#dHora').value, dest: leerDest('dd') };
+    if (!datos.tema) { $('#dMsg').textContent = 'Escribe el tema.'; $('#dTema').focus(); return; }
+    if (!CUENTAS.some(function (a) { return datos.dest[a.k]; })) { $('#dMsg').textContent = 'Marca al menos una página y red.'; return; }
+    $('#dBtn').disabled = true;
+    call('publicacionDirecta', datos).then(function (c) { cerrarModal(); toast('Publicación registrada'); S.linkSel = c.id; S.lQ = ''; go('links'); })
+      .catch(function (err) { $('#dMsg').textContent = err.message; $('#dBtn').disabled = false; });
+  };
+}
+
 function pintarLinks(lista) {
+  var cabeza = '<div class="head"><div><h1>Links y mensaje</h1><p class="sub">Marca dónde se publicó, pega los links y genera el mensaje con el tema y los links.</p></div>' +
+    '<button class="btn" id="lDirecta">' + ic('plus') + 'Publicación sin programar</button></div>';
   if (!lista.length) {
-    $('#view').innerHTML = '<div class="head"><div><h1>Links y mensaje</h1></div></div><div class="card"><div class="emptyst"><span class="round">' + ic('link') + '</span><b>No hay publicaciones recientes</b><p>Aquí aparecen los contenidos programados o publicados de los últimos 45 días cuya fecha ya llegó.</p></div></div>';
+    $('#view').innerHTML = cabeza + '<div class="card"><div class="emptyst"><span class="round">' + ic('link') + '</span><b>No hay publicaciones recientes</b><p>Aquí aparece todo lo subido de los últimos 45 días. Si publicaste algo directo en redes, regístralo con <b>Publicación sin programar</b>.</p></div></div>';
+    $('#lDirecta').onclick = formDirecta;
     return;
   }
-  var it = lista.filter(function (x) { return x.id === S.linkSel; })[0] || lista[0];
+  var norm = function (t) { return String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); };
+  var q = norm(S.lQ.trim());
+  var visibles = q ? lista.filter(function (p) { return norm(p.tema + ' ' + p.tipo + ' ' + p.autorNombre).indexOf(q) > -1; }) : lista;
+  var deHoy = visibles.filter(function (x) { return x.fecha <= today(); })[0];
+  var it = lista.filter(function (x) { return x.id === S.linkSel; })[0] || deHoy || visibles[0] || lista[0];
   S.linkSel = it.id;
-  var items = lista.map(function (p) {
-    return '<button class="pitem" data-lsel="' + p.id + '" aria-current="' + (p.id === it.id) + '"><small>' + fCorta(p.fecha) + ' · ' + esc(p.hora) + ' · ' + PGNAME[pagesOf(p)] + '</small><b>' + esc(p.tema) + '</b><span class="row">' + linkTag(filled(p), active(p).length) + (p.estado === 'Programado' ? '<span class="tag">Programado</span>' : '') + '</span></button>';
-  }).join('');
+  var etiqueta = function (p) {
+    if (p.estado === 'Publicado') return '';
+    return '<span class="tag' + (p.estado === 'En revisión' ? ' warn' : '') + '">' + esc(p.estado) + '</span>';
+  };
+  var items = visibles.length ? visibles.map(function (p) {
+    return '<button class="pitem" data-lsel="' + p.id + '" aria-current="' + (p.id === it.id) + '"><small>' + fCorta(p.fecha) + ' · ' + esc(p.hora) + ' · ' + PGNAME[pagesOf(p)] + '</small><b>' + esc(p.tema) + '</b><span class="row">' + linkTag(filled(p), active(p).length) + etiqueta(p) + '</span></button>';
+  }).join('') : '<p class="meta" style="padding:8px">Nada coincide con "' + esc(S.lQ) + '".</p>';
+  var aviso = it.estado === 'En revisión' || it.estado === 'Borrador'
+    ? '<div class="banner">' + ic('shield') + '<span>Este contenido está en <b>' + esc(it.estado.toLowerCase()) + '</b>. Si ya lo publicaste, al guardar sus links queda como publicado y se anota en la bitácora.</span></div>' : '';
 
-  $('#view').innerHTML =
-    '<div class="head"><div><h1>Links y mensaje</h1><p class="sub">Marca dónde se publicó, pega los links y genera el mensaje con el tema y los links.</p></div></div>' +
-    '<section class="row2 side"><div class="card"><div class="card-h"><h2>Publicaciones</h2><span class="tag">' + lista.length + '</span></div><div class="plist">' + items + '</div></div>' +
-    '<div class="card" id="lform"><div><p class="meta">' + fLarga(it.fecha) + ' · ' + esc(it.hora) + ' · ' + esc(it.tipo) + '</p><h2 style="font-size:22px;margin-top:4px">' + esc(it.tema) + '</h2></div>' +
+  $('#view').innerHTML = cabeza +
+    '<section class="row2 side"><div class="card"><div class="card-h"><h2>Publicaciones</h2><span class="tag">' + lista.length + '</span></div>' +
+      '<div class="searchbox">' + ic('search') + '<input type="search" id="lBuscar" placeholder="Buscar por tema" value="' + esc(S.lQ) + '" aria-label="Buscar publicación"></div>' +
+      '<div class="plist" id="lLista">' + items + '</div></div>' +
+    '<div class="card" id="lform"><div><p class="meta">' + fLarga(it.fecha) + ' · ' + esc(it.hora) + ' · ' + esc(it.tipo) + ' · ' + esc(it.estado) + '</p><h2 style="font-size:22px;margin-top:4px">' + esc(it.tema) + '</h2></div>' + aviso +
       '<div><span class="l">¿Dónde se publicó?</span>' + destToggles(it.dest, 'ld') + '</div>' +
       '<div class="linkgrid" id="lkgrid"></div>' +
       '<div class="actions"><button class="btn ghost" id="lSave">' + ic('save') + 'Guardar links</button><button class="btn" id="genAI">' + ic('spark') + 'Generar mensaje con IA</button><button class="btn ghost" id="genPlain">Armar sin IA</button></div>' +
@@ -1159,6 +1370,12 @@ function pintarLinks(lista) {
       '<div class="actions"><button class="btn dark" id="copy">' + ic('copy') + 'Copiar mensaje</button></div>' +
     '</div></section>';
 
+  $('#lDirecta').onclick = formDirecta;
+  var tBus = null;
+  $('#lBuscar').oninput = function () {
+    var v = this.value; clearTimeout(tBus);
+    tBus = setTimeout(function () { S.lQ = v; pintarLinks(lista); var b = $('#lBuscar'); b.focus(); b.setSelectionRange(v.length, v.length); }, 250);
+  };
   var trabajo = { dest: Object.assign({}, it.dest), links: Object.assign({}, it.links) };
   function estado(m) { $('#lstatus').textContent = m; }
   function campos() {
