@@ -81,7 +81,17 @@ var CUENTAS = [
   { k: 'fbDto', pagina: 'Delegado', red: 'Facebook', ab: 'FB', re: /^https?:\/\/(www\.|m\.|web\.)?(facebook\.com|fb\.watch|fb\.com)\//i },
   { k: 'igDto', pagina: 'Delegado', red: 'Instagram', ab: 'IG', re: /^https?:\/\/(www\.)?instagram\.com\//i }
 ];
-var TIPOS = ['Video', 'Reel', 'Arte', 'Carrusel', 'Historia', 'En vivo'];
+var FORMATOS_BASE = ['Video', 'Reel', 'Arte', 'Carrusel', 'Historia', 'En vivo'];
+/* Programas y formatos los administra el administrador en Configuración; llegan al iniciar sesión. */
+function formatos() { return (S.cat && S.cat.formatos) || FORMATOS_BASE; }
+function programas() { return (S.cat && S.cat.programas) || []; }
+/** Opciones de un select; incluye el valor actual aunque ya no esté en la lista. */
+function opciones(lista, actual, vacio) {
+  var l = lista.slice(); if (actual && l.indexOf(actual) === -1) l.push(actual);
+  return (vacio ? '<option value="">' + esc(vacio) + '</option>' : '') +
+    l.map(function (t) { return '<option' + (t === actual ? ' selected' : '') + '>' + esc(t) + '</option>'; }).join('');
+}
+function progTag(p) { return p ? '<span class="tag prog">' + esc(p) + '</span>' : ''; }
 var ROL_TXT = { admin: 'Administrador', capturista: 'Capturista', aprobador: 'Aprobador' };
 var ROL_DESC = { admin: 'Acceso total', capturista: 'Sube y edita contenidos', aprobador: 'Revisa y aprueba' };
 var MODS = {
@@ -131,7 +141,7 @@ function linkTag(a, t) {
 var S = {
   token: null, user: null, mod: 'inicio', seq: 0,
   week: null, day: null, sel: null, items: {},
-  editItem: null, prefill: null, albumSel: null, matQ: '', matPrefill: null, matBorrar: null, lQ: '', aWeek: null, aFiltro: 'todos', aAccion: null, linkSel: null, res: 'all', file: null, confirmDel: null, rejecting: null
+  editItem: null, prefill: null, albumSel: null, matProg: null, aProg: '', matQ: '', matPrefill: null, matBorrar: null, lQ: '', aWeek: null, aFiltro: 'todos', aAccion: null, linkSel: null, res: 'all', file: null, confirmDel: null, rejecting: null
 };
 
 function guardarSesion() {
@@ -359,7 +369,7 @@ $('#fLogin').addEventListener('submit', function (e) {
   e.preventDefault();
   var b = $('#lBtn'); b.disabled = true; $('#lMsg').textContent = 'Entrando…';
   call('login', { email: $('#lEmail').value, pass: $('#lPass').value }).then(function (r) {
-    S.token = r.token; S.user = r.usuario; guardarSesion(); $('#lPass').value = ''; $('#lMsg').textContent = ''; entrar();
+    S.token = r.token; S.user = r.usuario; S.cat = r.catalogos; guardarSesion(); $('#lPass').value = ''; $('#lMsg').textContent = ''; entrar();
   }).catch(function (err) { $('#lMsg').textContent = err.message; }).then(function () { b.disabled = false; });
 });
 $('#fCambio').addEventListener('submit', function (e) {
@@ -496,7 +506,7 @@ function mInicio(seq) {
         '<div class="card"><div class="card-h"><div><h2>Próximas publicaciones</h2><p>Los siguientes 7 días</p></div></div>' +
           (d.proximas.length ? '<div class="tbl"><table class="rt"><thead><tr><th>Contenido</th><th>Fecha</th><th>Dónde</th><th>Estado</th></tr></thead><tbody>' +
             d.proximas.map(function (i) {
-              return '<tr><td class="first"><div class="tcell"><span class="pg ' + pagesOf(i) + '"></span><div><b>' + esc(i.tema) + '</b><small>' + esc(i.tipo) + ' · subió ' + esc(i.autorNombre) + (i.revisadoPor && i.estado !== 'Rechazado' ? ' · aprobó ' + esc(i.revisadoPor) : '') + '</small></div></div></td>' +
+              return '<tr><td class="first"><div class="tcell"><span class="pg ' + pagesOf(i) + '"></span><div><b>' + esc(i.tema) + '</b><small>' + esc(i.tipo) + (i.programa ? ' · ' + esc(i.programa) : '') + ' · subió ' + esc(i.autorNombre) + (i.revisadoPor && i.estado !== 'Rechazado' ? ' · aprobó ' + esc(i.revisadoPor) : '') + '</small></div></div></td>' +
                 '<td data-label="Fecha" style="white-space:nowrap">' + fCorta(i.fecha) + ' · ' + esc(i.hora) + '</td><td data-label="Dónde">' + nets(i) + '</td><td data-label="Estado">' + st(i.estado) + '</td></tr>';
             }).join('') + '</tbody></table></div>'
             : '<div class="emptyst"><span class="round">' + ic('calendar') + '</span><b>No hay nada programado</b><p>Lo que se suba para los próximos días aparecerá aquí.</p></div>') +
@@ -745,7 +755,7 @@ function pintarParrilla(lista) {
     var esHoy = d.f === hoy, pd = parse(d.f);
     return '<div class="day' + (esHoy ? ' today' : '') + (i === S.day ? ' on' : '') + '"><div class="day-h"><b>' + pd.getDate() + '</b><span>' + DIAS[pd.getDay()] + (esHoy ? ' · hoy' : '') + '</span></div>' +
       (d.items.length ? d.items.map(function (x) {
-        return '<button class="ev" data-sel="' + x.id + '" aria-pressed="' + (sel && x.id === sel.id) + '"><span class="h"><span class="pg ' + pagesOf(x) + '"></span>' + esc(x.hora) + ' · ' + esc(x.tipo) + '</span><span class="t">' + esc(x.tema) + '</span>' + st(x.estado) + '</button>';
+        return '<button class="ev" data-sel="' + x.id + '" aria-pressed="' + (sel && x.id === sel.id) + '"><span class="h"><span class="pg ' + pagesOf(x) + '"></span>' + esc(x.hora) + ' · ' + esc(x.tipo) + '</span><span class="t">' + esc(x.tema) + '</span>' + (x.programa ? '<span class="ev-p">' + esc(x.programa) + '</span>' : '') + st(x.estado) + '</button>';
       }).join('') : '<span class="empty-day">Sin publicaciones</span>') + '</div>';
   }).join('');
   var picker = porDia.map(function (d, i) {
@@ -765,12 +775,12 @@ function pintarParrilla(lista) {
       if (u.rol !== 'aprobador' && sel.estado === 'Programado') acts.push('<button class="btn sm ghost" id="bPub">' + ic('check') + 'Marcar publicado</button>');
       if (u.rol !== 'aprobador' && (sel.estado === 'Programado' || sel.estado === 'Publicado') && sel.fecha <= hoy) acts.push('<button class="btn sm dark" id="bLinks">' + ic('link') + 'Capturar links</button>');
       if (sel.estado === 'En revisión' && u.rol !== 'capturista') acts.push('<button class="btn sm dark" data-go="aprobaciones">' + ic('shield') + 'Ir a aprobar</button>');
-      if (sel.archivo) acts.push('<a class="btn sm ghost" target="_blank" rel="noopener" href="' + driveBajar(sel.archivo.id) + '">' + ic('download') + 'Descargar</a>');
+      if (sel.archivo) acts.push(botonesDrive(sel.archivo.id, true));
       if (u.rol === 'capturista' && !puedeEditar(sel)) acts.push('<span class="meta">Solo puedes editar lo que tú subiste.</span>');
     }
     detalle = '<div class="detail">' + mediaHtml(sel.archivo, sel.tipo) +
       '<div class="info"><div>' + st(sel.estado) + '</div><h2>' + esc(sel.tema) + '</h2>' +
-      '<dl class="kv"><dt>Fecha</dt><dd>' + fLarga(sel.fecha) + ' · ' + esc(sel.hora) + '</dd><dt>Dónde</dt><dd>' + nets(sel) + '</dd><dt>Subió</dt><dd>' + esc(sel.autorNombre) + '</dd><dt>Revisión</dt><dd>' + (sel.revisadoPor ? esc(revision(sel)) : sel.estado === 'En revisión' ? 'Esperando a un aprobador' : '—') + '</dd>' +
+      '<dl class="kv"><dt>Programa</dt><dd>' + esc(sel.programa || 'Sin programa') + '</dd><dt>Fecha</dt><dd>' + fLarga(sel.fecha) + ' · ' + esc(sel.hora) + '</dd><dt>Dónde</dt><dd>' + nets(sel) + '</dd><dt>Subió</dt><dd>' + esc(sel.autorNombre) + '</dd><dt>Revisión</dt><dd>' + (sel.revisadoPor ? esc(revision(sel)) : sel.estado === 'En revisión' ? 'Esperando a un aprobador' : '—') + '</dd>' +
       (sel.archivo ? '<dt>Archivo</dt><dd><a target="_blank" rel="noopener" href="https://drive.google.com/file/d/' + encodeURIComponent(sel.archivo.id) + '/view">' + esc(sel.archivo.nombre || 'Abrir en Drive') + '</a></dd>' : '') + '</dl>' +
       (sel.estado === 'Rechazado' && sel.motivo ? '<div class="note"><b>Motivo del rechazo:</b> ' + esc(sel.motivo) + '</div>' : '') +
       (sel.copy ? '<div><span class="l">Texto de la publicación</span><div class="copytext">' + esc(sel.copy) + '</div></div>' : '') +
@@ -841,7 +851,7 @@ function pintarAgenda() {
   var d = S.agenda, u = S.user, hoy = today();
   var todos = d.eventos;
   var filtros = { todos: function () { return true; }, mios: function (e) { return asignadoA(e, u.id); }, sin: function (e) { return !e.asignados.length && e.estado === 'Pendiente'; } };
-  var lista = todos.filter(filtros[S.aFiltro] || filtros.todos);
+  var lista = todos.filter(filtros[S.aFiltro] || filtros.todos).filter(function (e) { return !S.aProg || e.programa === S.aProg; });
   var pendientes = todos.filter(function (e) { return e.estado === 'Pendiente'; }).length;
   var sinAsignar = todos.filter(function (e) { return !e.asignados.length && e.estado === 'Pendiente'; }).length;
   var mios = todos.filter(function (e) { return asignadoA(e, u.id) && e.estado === 'Pendiente'; }).length;
@@ -887,7 +897,7 @@ function pintarAgenda() {
     return '<article class="ag-ev' + (asignadoA(e, u.id) && e.estado === 'Pendiente' ? ' mine' : '') + (e.estado === 'Cancelado' ? ' off' : '') + '">' +
       '<div class="ag-hora"><b>' + esc(e.hora) + '</b>' + (e.horaFin ? '<small>a ' + esc(e.horaFin) + '</small>' : '') + '</div>' +
       '<div class="ag-body">' +
-        '<div class="ag-top"><span class="tag">' + esc(e.tipo) + '</span><span class="st ' + (AG_ESTADO[e.estado] || 'rev') + '">' + esc(e.estado) + '</span>' +
+        '<div class="ag-top">' + progTag(e.programa) + '<span class="tag">' + esc(e.tipo) + '</span><span class="st ' + (AG_ESTADO[e.estado] || 'rev') + '">' + esc(e.estado) + '</span>' +
           (asignadoA(e, u.id) && e.estado === 'Pendiente' ? '<span class="tag ok">Te toca</span>' : '') +
           (!e.asignados.length && e.estado === 'Pendiente' ? '<span class="tag warn">Sin asignar</span>' : '') +
           (e.contenidoId ? '<span class="tag ok">' + ic('link', 'i ic-sm') + 'Publicación ligada</span>' : '') + '</div>' +
@@ -918,7 +928,7 @@ function pintarAgenda() {
       '<button class="btn" id="agNuevo">' + ic('plus') + 'Agendar evento</button></div></div>' +
     '<div class="ag-bar"><div class="seg" role="group" aria-label="Filtro">' +
       [['todos', 'Todos'], ['mios', 'Mis coberturas'], ['sin', 'Sin asignar']].map(function (o) { return '<button data-agf="' + o[0] + '" aria-pressed="' + (S.aFiltro === o[0]) + '">' + o[1] + '</button>'; }).join('') +
-      '</div><div class="legend"><span><b>' + todos.length + '</b> en la semana</span><span><b>' + pendientes + '</b> por cubrir</span>' +
+      '</div><select id="aProg" class="sel-sm" aria-label="Programa">' + opciones(programas(), S.aProg || '', 'Todos los programas') + '</select><div class="legend"><span><b>' + todos.length + '</b> en la semana</span><span><b>' + pendientes + '</b> por cubrir</span>' +
       (mios ? '<span class="tag ok">' + mios + ' te tocan</span>' : '') + (sinAsignar ? '<span class="tag warn">' + sinAsignar + ' sin asignar</span>' : '') + '</div></div>' +
     '<div class="ag-list">' + cuerpo + '</div>';
 
@@ -929,6 +939,7 @@ function pintarAgenda() {
   $('#agNuevo').onclick = function () { formEvento(null); };
   var n2 = $('#agNuevo2'); if (n2) n2.onclick = function () { formEvento(null); };
   $$('[data-agf]').forEach(function (b) { b.onclick = function () { S.aFiltro = b.dataset.agf; S.aAccion = null; pintarAgenda(); }; });
+  $('#aProg').onchange = function () { S.aProg = this.value; S.aAccion = null; pintarAgenda(); };
   var ev = function (id) { return todos.filter(function (e) { return e.id === id; })[0]; };
   $$('[data-agedit]').forEach(function (b) { b.onclick = function () { formEvento(ev(b.dataset.agedit)); }; });
   $$('[data-agdel]').forEach(function (b) { b.onclick = function () { S.aAccion = { id: b.dataset.agdel, tipo: 'borrar' }; pintarAgenda(); }; });
@@ -966,12 +977,12 @@ function pintarAgenda() {
     b.onclick = function () {
       var e = ev(b.dataset.agpub);
       S.editItem = null;
-      S.prefill = { id: e.id, titulo: e.titulo, tema: e.titulo + (e.municipio && e.titulo.indexOf(e.municipio) === -1 ? ' en ' + e.municipio : ''), fecha: e.fecha < today() ? today() : e.fecha, dest: destDeEvento(e.tipo) };
+      S.prefill = { id: e.id, titulo: e.titulo, programa: e.programa, tema: e.titulo + (e.municipio && e.titulo.indexOf(e.municipio) === -1 ? ' en ' + e.municipio : ''), fecha: e.fecha < today() ? today() : e.fecha, dest: destDeEvento(e.tipo) };
       go('contenidos');
     };
   });
   $$('[data-agmat]').forEach(function (b) {
-    b.onclick = function () { var e = ev(b.dataset.agmat); S.albumSel = null; S.matPrefill = { titulo: e.titulo, fecha: e.fecha, municipio: e.municipio, eventoId: e.id }; go('material'); };
+    b.onclick = function () { var e = ev(b.dataset.agmat); S.albumSel = null; S.matPrefill = { titulo: e.titulo, fecha: e.fecha, municipio: e.municipio, eventoId: e.id, programa: e.programa }; S.matProg = e.programa || null; S.matQ = ''; go('material'); };
   });
   $$('[data-agver]').forEach(function (b) {
     b.onclick = function () { var e = ev(b.dataset.agver); S.week = monday(e.fecha); S.sel = e.contenidoId; S.day = null; go('parrilla'); };
@@ -987,6 +998,7 @@ function formEvento(e) {
   abrirModal(e ? 'Editar evento' : 'Agendar evento',
     '<form id="fEv" class="stack" novalidate>' +
       '<div><label class="l" for="evT">Evento</label><input type="text" id="evT" maxlength="200" value="' + esc(e ? e.titulo : '') + '" placeholder="Ej. Entrega de tarjetas de Pensión Bienestar"></div>' +
+      '<div><label class="l" for="evP">Programa</label><select id="evP">' + opciones(programas(), e ? e.programa : '', 'Elige el programa…') + '</select></div>' +
       '<div><label class="l" for="evTipo">Tipo</label><select id="evTipo">' + c.tipos.map(function (t) { return '<option' + (e && e.tipo === t ? ' selected' : '') + '>' + esc(t) + '</option>'; }).join('') + '</select></div>' +
       '<div class="form"><div><label class="l" for="evF">Fecha</label><input type="date" id="evF" value="' + esc(e ? e.fecha : (S.aWeek && S.aWeek > today() ? S.aWeek : today())) + '"></div>' +
       '<div><label class="l" for="evH">Hora</label><input type="time" id="evH" value="' + esc(e ? e.hora : '10:00') + '"></div>' +
@@ -1002,12 +1014,13 @@ function formEvento(e) {
   $('#fEv').onsubmit = function (ev) {
     ev.preventDefault();
     var datos = {
-      id: e ? e.id : null, titulo: $('#evT').value.trim(), tipo: $('#evTipo').value, fecha: $('#evF').value, hora: $('#evH').value,
+      id: e ? e.id : null, titulo: $('#evT').value.trim(), programa: $('#evP').value, tipo: $('#evTipo').value, fecha: $('#evF').value, hora: $('#evH').value,
       horaFin: $('#evHF').value, municipio: $('#evM').value, lugar: $('#evL').value, contacto: $('#evC').value, notas: $('#evN').value,
       requiere: $$('[data-req]').filter(function (x) { return x.checked; }).map(function (x) { return x.dataset.req; }),
       asignados: $$('[data-asig]').filter(function (x) { return x.checked; }).map(function (x) { return x.dataset.asig; })
     };
     if (!datos.titulo) { $('#evMsg').textContent = 'Escribe de qué se trata el evento.'; $('#evT').focus(); return; }
+    if (!datos.programa) { $('#evMsg').textContent = 'Elige el programa del evento.'; $('#evP').focus(); return; }
     if (!datos.fecha || !datos.hora) { $('#evMsg').textContent = 'Escribe la fecha y la hora.'; return; }
     $('#evG').disabled = true;
     call('guardarEvento', datos).then(function (r) {
@@ -1025,7 +1038,9 @@ function mMaterial(seq) {
     return call('album', { id: S.albumSel }).then(function (d) { if (vigente(seq)) pintarAlbum(d); })
       .catch(function (e) { if (/No se encontró/.test(e.message)) { S.albumSel = null; return mMaterial(seq); } throw e; });
   }
-  return call('albumes', { q: S.matQ }).then(function (d) {
+  var filtro = { q: S.matQ };
+  if (S.matProg !== null) filtro.programa = S.matProg;
+  return call('albumes', filtro).then(function (d) {
     if (!vigente(seq)) return;
     S.matData = d;
     pintarAlbumes(d);
@@ -1039,26 +1054,58 @@ function portadaHtml(a) {
   return '<div class="mat-cover"><img alt="" loading="lazy" src="' + driveMini(a.portada.archivoId, 600) + '" onerror="this.remove()">' + (esVideo ? '<span class="play">' + ic('play') + '</span>' : '') + '</div>';
 }
 
-function pintarAlbumes(d) {
-  var tarjetas = d.albumes.map(function (a) {
-    return '<button class="mat-card" data-album="' + a.id + '">' + portadaHtml(a) +
-      '<div class="mat-info"><b>' + esc(a.titulo) + '</b><span>' + fCorta(a.fecha) + (a.municipio ? ' · ' + esc(a.municipio) : '') + '</span>' +
-      '<span class="mat-cnt">' + a.fotos + (a.fotos === 1 ? ' foto' : ' fotos') + ' · ' + a.videos + (a.videos === 1 ? ' video' : ' videos') + (a.tamano ? ' · ' + pesoTxt(a.tamano) : '') + '</span>' +
-      (a.eventoTitulo ? '<span class="tag">' + ic('pin', 'i ic-sm') + 'Evento de la agenda</span>' : '') + '</div></button>';
-  }).join('');
+/** Vista principal de Material: una carpeta por programa. */
+function pintarProgramas(d) {
+  var res = {}; (d.programas || []).forEach(function (r) { res[r.programa] = r; });
+  var nombres = programas().slice();
+  Object.keys(res).forEach(function (p) { if (nombres.indexOf(p) === -1) nombres.push(p); });
+  var conAlgo = nombres.filter(function (p) { return res[p]; }), vacios = nombres.filter(function (p) { return !res[p] && p; });
+  var tarjeta = function (p) {
+    var r = res[p] || { albumes: 0, archivos: 0, portada: null };
+    return '<button class="mat-card prog-card' + (r.albumes ? '' : ' empty') + '" data-prog="' + esc(p) + '">' +
+      (r.portada ? '<div class="mat-cover"><img alt="" loading="lazy" src="' + driveMini(r.portada.archivoId, 600) + '" onerror="this.remove()"><span class="folder">' + ic('folder') + '</span></div>'
+                 : '<div class="mat-cover vacio">' + ic('folder') + '</div>') +
+      '<div class="mat-info"><b>' + esc(p || 'Sin programa') + '</b><span class="mat-cnt">' + r.albumes + (r.albumes === 1 ? ' álbum' : ' álbumes') + ' · ' + r.archivos + (r.archivos === 1 ? ' archivo' : ' archivos') + '</span></div></button>';
+  };
   $('#view').innerHTML =
-    '<div class="head"><div><h1>Material</h1><p class="sub">Todas las fotos y videos que se graban, ordenados por álbum. Se guardan en Drive.</p></div>' +
+    '<div class="head"><div><h1>Material</h1><p class="sub">Fotos y videos grabados, por programa. Dentro de cada programa están sus álbumes.</p></div>' +
       '<button class="btn" id="mNuevo">' + ic('plus') + 'Nuevo álbum</button></div>' +
-    '<div class="searchbox wide">' + ic('search') + '<input type="search" id="mBuscar" placeholder="Buscar por evento, municipio o fecha" value="' + esc(S.matQ) + '" aria-label="Buscar álbum"></div>' +
-    (d.albumes.length ? '<div class="mat-grid">' + tarjetas + '</div>'
-      : '<div class="card"><div class="emptyst"><span class="round">' + ic('image') + '</span><b>' + (S.matQ ? 'Nada coincide con la búsqueda' : 'Aún no hay material') + '</b><p>Crea un álbum por evento o por día y sube ahí todas las fotos y videos que grabaron.</p><button class="btn" id="mNuevo2">' + ic('plus') + 'Nuevo álbum</button></div></div>');
+    '<div class="searchbox wide">' + ic('search') + '<input type="search" id="mBuscar" placeholder="Buscar álbum en todos los programas" value="' + esc(S.matQ) + '" aria-label="Buscar álbum"></div>' +
+    '<div class="mat-grid">' + conAlgo.concat(vacios).map(tarjeta).join('') + '</div>';
   $('#mNuevo').onclick = function () { formAlbum(null); };
-  var n2 = $('#mNuevo2'); if (n2) n2.onclick = function () { formAlbum(null); };
+  buscadorMaterial();
+  $$('[data-prog]').forEach(function (b) { b.onclick = function () { S.matProg = b.dataset.prog; S.matQ = ''; go('material'); }; });
+}
+
+function buscadorMaterial() {
   var t = null;
   $('#mBuscar').oninput = function () {
     var v = this.value; clearTimeout(t);
     t = setTimeout(function () { S.matQ = v; go('material'); setTimeout(function () { var b = $('#mBuscar'); if (b) { b.focus(); b.setSelectionRange(v.length, v.length); } }, 300); }, 400);
   };
+}
+
+function pintarAlbumes(d) {
+  if (S.matProg === null && !S.matQ) { pintarProgramas(d); return; }
+  var enPrograma = S.matProg !== null;
+  var tarjetas = d.albumes.map(function (a) {
+    return '<button class="mat-card" data-album="' + a.id + '">' + portadaHtml(a) +
+      '<div class="mat-info"><b>' + esc(a.titulo) + '</b><span>' + fCorta(a.fecha) + (a.municipio ? ' · ' + esc(a.municipio) : '') + '</span>' +
+      '<span class="mat-cnt">' + a.fotos + (a.fotos === 1 ? ' foto' : ' fotos') + ' · ' + a.videos + (a.videos === 1 ? ' video' : ' videos') + (a.tamano ? ' · ' + pesoTxt(a.tamano) : '') + '</span>' +
+      (!enPrograma ? progTag(a.programa || 'Sin programa') : '') +
+      (a.eventoTitulo ? '<span class="tag">' + ic('pin', 'i ic-sm') + 'Evento de la agenda</span>' : '') + '</div></button>';
+  }).join('');
+  $('#view').innerHTML =
+    '<div class="head"><div><button class="linkbtn" id="mVolver">' + ic('left', 'i ic-sm') + ' Material</button><h1>' + (enPrograma ? esc(S.matProg || 'Sin programa') : 'Resultados de búsqueda') + '</h1>' +
+      '<p class="sub">' + d.albumes.length + (d.albumes.length === 1 ? ' álbum' : ' álbumes') + (enPrograma ? ' de este programa' : ' en todos los programas') + '</p></div>' +
+      '<button class="btn" id="mNuevo">' + ic('plus') + 'Nuevo álbum</button></div>' +
+    '<div class="searchbox wide">' + ic('search') + '<input type="search" id="mBuscar" placeholder="' + (enPrograma ? 'Buscar en este programa' : 'Buscar álbum') + '" value="' + esc(S.matQ) + '" aria-label="Buscar álbum"></div>' +
+    (d.albumes.length ? '<div class="mat-grid">' + tarjetas + '</div>'
+      : '<div class="card"><div class="emptyst"><span class="round">' + ic('image') + '</span><b>' + (S.matQ ? 'Nada coincide con la búsqueda' : 'Aún no hay material') + '</b><p>Crea un álbum por evento o por día y sube ahí todas las fotos y videos que grabaron.</p><button class="btn" id="mNuevo2">' + ic('plus') + 'Nuevo álbum</button></div></div>');
+  $('#mNuevo').onclick = function () { formAlbum(null, enPrograma ? { programa: S.matProg } : null); };
+  var n2 = $('#mNuevo2'); if (n2) n2.onclick = function () { formAlbum(null, enPrograma ? { programa: S.matProg } : null); };
+  $('#mVolver').onclick = function () { S.matProg = null; S.matQ = ''; go('material'); };
+  buscadorMaterial();
   $$('[data-album]').forEach(function (b) { b.onclick = function () { S.albumSel = b.dataset.album; go('material'); }; });
 }
 
@@ -1068,6 +1115,7 @@ function formAlbum(a, pre) {
   var munis = d.municipios.length ? d.municipios : (S.agenda && S.agenda.catalogos.municipios) || [];
   abrirModal(a ? 'Editar álbum' : 'Nuevo álbum',
     '<form id="fAl" class="stack" novalidate>' +
+      '<div><label class="l" for="alP">Programa</label><select id="alP">' + opciones(programas(), v.programa || (S.matProg || ''), 'Elige el programa…') + '</select></div>' +
       '<div><label class="l" for="alT">Nombre del álbum</label><input type="text" id="alT" maxlength="150" value="' + esc(v.titulo || '') + '" placeholder="Ej. Entrega de tarjetas en Centla"></div>' +
       '<div class="form"><div><label class="l" for="alF">Fecha de grabación</label><input type="date" id="alF" value="' + esc(v.fecha || today()) + '"></div>' +
       '<div><label class="l" for="alM">Municipio</label><select id="alM"><option value="">Elige…</option>' + munis.map(function (m) { return '<option' + (v.municipio === m ? ' selected' : '') + '>' + esc(m) + '</option>'; }).join('') + '</select></div></div>' +
@@ -1077,11 +1125,12 @@ function formAlbum(a, pre) {
       '<button class="btn" type="submit" id="alG">' + ic('save') + (a ? 'Guardar cambios' : 'Crear álbum y subir archivos') + '</button><p class="status err" id="alMsg"></p></form>');
   $('#fAl').onsubmit = function (e) {
     e.preventDefault();
-    var datos = { id: a ? a.id : null, titulo: $('#alT').value.trim(), fecha: $('#alF').value, municipio: $('#alM').value, eventoId: $('#alE').value, notas: $('#alN').value };
+    var datos = { id: a ? a.id : null, programa: $('#alP').value, titulo: $('#alT').value.trim(), fecha: $('#alF').value, municipio: $('#alM').value, eventoId: $('#alE').value, notas: $('#alN').value };
+    if (!datos.programa) { $('#alMsg').textContent = 'Elige el programa.'; $('#alP').focus(); return; }
     if (!datos.titulo) { $('#alMsg').textContent = 'Escribe el nombre del álbum.'; $('#alT').focus(); return; }
     if (!datos.fecha) { $('#alMsg').textContent = 'Elige la fecha.'; return; }
     $('#alG').disabled = true;
-    call('guardarAlbum', datos).then(function (r) { cerrarModal(); toast(a ? 'Álbum actualizado' : 'Álbum creado'); S.albumSel = r.album.id; go('material'); })
+    call('guardarAlbum', datos).then(function (r) { cerrarModal(); toast(a ? 'Álbum actualizado' : 'Álbum creado'); S.albumSel = r.album.id; S.matProg = r.album.programa; go('material'); })
       .catch(function (err) { $('#alMsg').textContent = err.message; $('#alG').disabled = false; });
   };
 }
@@ -1099,7 +1148,7 @@ function pintarAlbum(d) {
     ? '<div class="inline-confirm">¿Eliminar el álbum y sus ' + a.total + ' archivos? Se mandan a la papelera de Drive. <button class="btn sm" id="alBorrarSi">Sí, eliminar</button><button class="btn sm ghost" id="alBorrarNo">Cancelar</button></div>' : '';
 
   $('#view').innerHTML =
-    '<div class="head"><div><button class="linkbtn" id="alVolver">' + ic('left', 'i ic-sm') + ' Material</button><h1>' + esc(a.titulo) + '</h1>' +
+    '<div class="head"><div><button class="linkbtn" id="alVolver">' + ic('left', 'i ic-sm') + ' Material · ' + esc(a.programa || 'Sin programa') + '</button><h1>' + esc(a.titulo) + '</h1>' +
       '<p class="sub">' + fLarga(a.fecha) + (a.municipio ? ' · ' + esc(a.municipio) : '') + ' · ' + a.fotos + (a.fotos === 1 ? ' foto' : ' fotos') + ', ' + a.videos + (a.videos === 1 ? ' video' : ' videos') + (a.tamano ? ' · ' + pesoTxt(a.tamano) : '') + ' · creó ' + esc(a.creadoPorNombre) + '</p>' +
       (a.eventoTitulo ? '<p class="meta" style="margin-top:4px">' + ic('pin', 'i ic-sm') + 'Evento: ' + esc(a.eventoTitulo) + '</p>' : '') +
       (a.notas ? '<p class="meta" style="margin-top:4px">' + esc(a.notas) + '</p>' : '') + '</div>' +
@@ -1112,14 +1161,14 @@ function pintarAlbum(d) {
       : '<p class="meta" style="text-align:center">Todavía no hay archivos en este álbum.</p>') +
     (a.carpetaId && d.archivos.length ? '<p class="meta" style="text-align:center">Para descargar todo de una vez: <b>Abrir carpeta en Drive</b> y ahí <b>Descargar</b> (Drive lo entrega en un .zip).</p>' : '');
 
-  $('#alVolver').onclick = function () { S.albumSel = null; S.matBorrar = null; go('material'); };
+  $('#alVolver').onclick = function () { S.albumSel = null; S.matBorrar = null; S.matProg = a.programa || ''; S.matQ = ''; go('material'); };
   var on = function (id, fn) { var x = $('#' + id); if (x) x.onclick = fn; };
   on('alEditar', function () { formAlbum(a); });
   on('alBorrar', function () { S.matBorrar = a.id; pintarAlbum(d); });
   on('alBorrarNo', function () { S.matBorrar = null; pintarAlbum(d); });
   on('alBorrarSi', function () {
     this.disabled = true;
-    call('eliminarAlbum', { id: a.id }).then(function () { S.albumSel = null; S.matBorrar = null; toast('Álbum eliminado'); go('material'); })
+    call('eliminarAlbum', { id: a.id }).then(function () { S.albumSel = null; S.matBorrar = null; S.matProg = a.programa || ''; toast('Álbum eliminado'); go('material'); })
       .catch(function (e) { toast(e.message); });
   });
   $$('[data-mprev]').forEach(function (b) {
@@ -1196,8 +1245,8 @@ function aBase64(blob) {
   });
 }
 /** Sube un archivo a Drive en partes; informa el avance con onAvance(0..1). */
-function subirArchivo(file, onAvance, albumId) {
-  return call('iniciarSubida', { nombre: file.name, mime: file.type, tamano: file.size, albumId: albumId || '' }).then(function (r) {
+function subirArchivo(file, onAvance, albumId, programa) {
+  return call('iniciarSubida', { nombre: file.name, mime: file.type, tamano: file.size, albumId: albumId || '', programa: programa || '' }).then(function (r) {
     var inicio = 0;
     function siguiente(intentos) {
       var pedazo = file.slice(inicio, inicio + r.parte);
@@ -1228,7 +1277,8 @@ function mContenidos() {
     '<form class="row2 even" id="upForm" novalidate>' +
       '<div class="card"><h2>Datos de la publicación</h2><div class="form">' +
         '<div class="full"><label class="l" for="f-tema">Tema</label><input type="text" id="f-tema" maxlength="200" value="' + esc(it ? it.tema : pre ? pre.tema : '') + '" placeholder="Ej. Entrega de la Pensión Adultos Mayores en Teapa"></div>' +
-        '<div><label class="l" for="f-tipo">Formato</label><select id="f-tipo">' + TIPOS.map(function (t) { return '<option' + (it && it.tipo === t ? ' selected' : '') + '>' + t + '</option>'; }).join('') + '</select></div>' +
+        '<div class="full"><label class="l" for="f-prog">Programa</label><select id="f-prog">' + opciones(programas(), it ? it.programa : pre ? pre.programa : '', 'Elige el programa…') + '</select></div>' +
+        '<div><label class="l" for="f-tipo">Formato</label><select id="f-tipo">' + opciones(formatos(), it ? it.tipo : '') + '</select></div>' +
         '<div><label class="l" for="f-fecha">Fecha</label><input type="date" id="f-fecha" value="' + esc(it ? it.fecha : pre ? pre.fecha : today()) + '"></div>' +
         '<div><label class="l" for="f-hora">Hora</label><input type="time" id="f-hora" value="' + esc(it ? it.hora : '10:00') + '"></div>' +
         '<div><label class="l" for="f-autor">Subido por</label><input type="text" id="f-autor" value="' + esc(it ? it.autorNombre : u.nombre) + '" disabled></div>' +
@@ -1237,7 +1287,7 @@ function mContenidos() {
       '</div></div>' +
       '<div class="card"><h2>Video o imagen</h2>' +
         (it && it.archivo ? '<p class="meta">Archivo actual: <a target="_blank" rel="noopener" href="https://drive.google.com/file/d/' + encodeURIComponent(it.archivo.id) + '/view">' + esc(it.archivo.nombre) + '</a>. Elige otro solo si quieres reemplazarlo.</p>' : '') +
-        '<label class="drop" for="f-file" id="drop"><span class="round">' + ic('upload') + '</span><b style="color:var(--ink)">Toca o arrastra el archivo aquí</b><span>Video o imagen de hasta 1 GB. Se guarda en Drive, en la carpeta del mes.</span><input type="file" id="f-file" accept="video/*,image/*"></label>' +
+        '<label class="drop" for="f-file" id="drop"><span class="round">' + ic('upload') + '</span><b style="color:var(--ink)">Toca o arrastra el archivo aquí</b><span>Video o imagen de hasta 1 GB. Se guarda en Drive en Publicaciones / programa / mes.</span><input type="file" id="f-file" accept="video/*,image/*"></label>' +
         '<div class="preview" id="f-prev"></div>' +
         '<div id="f-bar" hidden><div class="bar"><i id="f-bari"></i></div><p class="meta" id="f-bart">Subiendo…</p></div>' +
         '<p class="status err" id="f-status" aria-live="polite"></p>' +
@@ -1269,12 +1319,13 @@ function mContenidos() {
   function enviar(borrador) {
     var msg = $('#f-status');
     var datos = {
-      id: it ? it.id : null, tema: $('#f-tema').value.trim(), tipo: $('#f-tipo').value,
+      id: it ? it.id : null, tema: $('#f-tema').value.trim(), tipo: $('#f-tipo').value, programa: $('#f-prog').value,
       fecha: $('#f-fecha').value, hora: $('#f-hora').value, dest: leerDest('f'), copy: $('#f-copy').value, borrador: borrador,
       archivo: it && it.archivo ? it.archivo : null,
       eventoId: pre ? pre.id : ''
     };
     if (!datos.tema) { msg.textContent = 'Escribe el tema de la publicación.'; $('#f-tema').focus(); return; }
+    if (!datos.programa) { msg.textContent = 'Elige el programa.'; $('#f-prog').focus(); return; }
     if (!datos.fecha) { msg.textContent = 'Elige la fecha.'; return; }
     if (!datos.hora) { msg.textContent = 'Elige la hora.'; return; }
     if (!CUENTAS.some(function (a) { return datos.dest[a.k]; })) { msg.textContent = 'Marca al menos una página y red.'; return; }
@@ -1286,7 +1337,7 @@ function mContenidos() {
       paso = subirArchivo(S.file, function (p) {
         $('#f-bari').style.width = Math.round(p * 100) + '%';
         $('#f-bart').textContent = 'Subiendo… ' + Math.round(p * 100) + '%';
-      }).then(function (archivo) { datos.archivo = archivo; $('#f-bart').textContent = 'Archivo subido. Guardando…'; });
+      }, '', datos.programa).then(function (archivo) { datos.archivo = archivo; $('#f-bart').textContent = 'Archivo subido. Guardando…'; });
     }
     paso.then(function () { return call('guardarContenido', datos); }).then(function (c) {
       toast(borrador ? 'Borrador guardado' : 'Enviado a revisión');
@@ -1317,15 +1368,17 @@ function formDirecta() {
   abrirModal('Publicación sin programar',
     '<form id="fDir" class="stack" novalidate><p class="meta">Para lo que se sube directo a redes (el contenido diario) y no pasó por la parrilla. Se registra como publicada para que pegues sus links.</p>' +
       '<div><label class="l" for="dTema">Tema</label><input type="text" id="dTema" maxlength="200" placeholder="Ej. Pago de la Pensión Adultos Mayores en Teapa"></div>' +
-      '<div class="form"><div><label class="l" for="dTipo">Formato</label><select id="dTipo">' + TIPOS.map(function (t) { return '<option>' + t + '</option>'; }).join('') + '</select></div>' +
+      '<div><label class="l" for="dProg">Programa</label><select id="dProg">' + opciones(programas(), '', 'Elige el programa…') + '</select></div>' +
+      '<div class="form"><div><label class="l" for="dTipo">Formato</label><select id="dTipo">' + opciones(formatos(), '') + '</select></div>' +
       '<div><label class="l" for="dFecha">Fecha</label><input type="date" id="dFecha" value="' + today() + '"></div>' +
       '<div><label class="l" for="dHora">Hora</label><input type="time" id="dHora" value="' + hhmm(ahora) + '"></div></div>' +
       '<div><span class="l">¿Dónde se publicó?</span>' + destToggles({}, 'dd') + '</div>' +
       '<button class="btn" type="submit" id="dBtn">' + ic('check') + 'Registrar y pegar links</button><p class="status err" id="dMsg"></p></form>');
   $('#fDir').onsubmit = function (e) {
     e.preventDefault();
-    var datos = { tema: $('#dTema').value.trim(), tipo: $('#dTipo').value, fecha: $('#dFecha').value, hora: $('#dHora').value, dest: leerDest('dd') };
+    var datos = { tema: $('#dTema').value.trim(), programa: $('#dProg').value, tipo: $('#dTipo').value, fecha: $('#dFecha').value, hora: $('#dHora').value, dest: leerDest('dd') };
     if (!datos.tema) { $('#dMsg').textContent = 'Escribe el tema.'; $('#dTema').focus(); return; }
+    if (!datos.programa) { $('#dMsg').textContent = 'Elige el programa.'; $('#dProg').focus(); return; }
     if (!CUENTAS.some(function (a) { return datos.dest[a.k]; })) { $('#dMsg').textContent = 'Marca al menos una página y red.'; return; }
     $('#dBtn').disabled = true;
     call('publicacionDirecta', datos).then(function (c) { cerrarModal(); toast('Publicación registrada'); S.linkSel = c.id; S.lQ = ''; go('links'); })
@@ -1352,7 +1405,7 @@ function pintarLinks(lista) {
     return '<span class="tag' + (p.estado === 'En revisión' ? ' warn' : '') + '">' + esc(p.estado) + '</span>';
   };
   var items = visibles.length ? visibles.map(function (p) {
-    return '<button class="pitem" data-lsel="' + p.id + '" aria-current="' + (p.id === it.id) + '"><small>' + fCorta(p.fecha) + ' · ' + esc(p.hora) + ' · ' + PGNAME[pagesOf(p)] + '</small><b>' + esc(p.tema) + '</b><span class="row">' + linkTag(filled(p), active(p).length) + etiqueta(p) + '</span></button>';
+    return '<button class="pitem" data-lsel="' + p.id + '" aria-current="' + (p.id === it.id) + '"><small>' + fCorta(p.fecha) + ' · ' + esc(p.hora) + ' · ' + PGNAME[pagesOf(p)] + (p.programa ? ' · ' + esc(p.programa) : '') + '</small><b>' + esc(p.tema) + '</b><span class="row">' + linkTag(filled(p), active(p).length) + etiqueta(p) + '</span></button>';
   }).join('') : '<p class="meta" style="padding:8px">Nada coincide con "' + esc(S.lQ) + '".</p>';
   var aviso = it.estado === 'En revisión' || it.estado === 'Borrador'
     ? '<div class="banner">' + ic('shield') + '<span>Este contenido está en <b>' + esc(it.estado.toLowerCase()) + '</b>. Si ya lo publicaste, al guardar sus links queda como publicado y se anota en la bitácora.</span></div>' : '';
@@ -1361,7 +1414,8 @@ function pintarLinks(lista) {
     '<section class="row2 side"><div class="card"><div class="card-h"><h2>Publicaciones</h2><span class="tag">' + lista.length + '</span></div>' +
       '<div class="searchbox">' + ic('search') + '<input type="search" id="lBuscar" placeholder="Buscar por tema" value="' + esc(S.lQ) + '" aria-label="Buscar publicación"></div>' +
       '<div class="plist" id="lLista">' + items + '</div></div>' +
-    '<div class="card" id="lform"><div><p class="meta">' + fLarga(it.fecha) + ' · ' + esc(it.hora) + ' · ' + esc(it.tipo) + ' · ' + esc(it.estado) + '</p><h2 style="font-size:22px;margin-top:4px">' + esc(it.tema) + '</h2></div>' + aviso +
+    '<div class="card" id="lform"><div><p class="meta">' + fLarga(it.fecha) + ' · ' + esc(it.hora) + ' · ' + esc(it.tipo) + ' · ' + esc(it.estado) + '</p><h2 style="font-size:22px;margin-top:4px">' + esc(it.tema) + '</h2>' +
+      '<div class="actions" style="margin-top:8px">' + progTag(it.programa) + (it.archivo ? botonesDrive(it.archivo.id, true) : '') + '</div></div>' + aviso +
       '<div><span class="l">¿Dónde se publicó?</span>' + destToggles(it.dest, 'ld') + '</div>' +
       '<div class="linkgrid" id="lkgrid"></div>' +
       '<div class="actions"><button class="btn ghost" id="lSave">' + ic('save') + 'Guardar links</button><button class="btn" id="genAI">' + ic('spark') + 'Generar mensaje con IA</button><button class="btn ghost" id="genPlain">Armar sin IA</button></div>' +
@@ -1455,8 +1509,9 @@ function pintarAprob(d) {
       acts = '<div class="actions"><button class="btn sm" data-ok="' + it.id + '">' + ic('check') + 'Aprobar</button><button class="btn sm ghost" data-reject="' + it.id + '">' + ic('x') + 'Rechazar</button></div>';
     }
     return '<div class="card acard">' + mediaHtml(it.archivo, it.tipo, 'sm') +
-      '<div class="info"><div class="meta">' + fCorta(it.fecha) + ' · ' + esc(it.hora) + ' · ' + esc(it.tipo) + ' · subió ' + esc(it.autorNombre) + '</div><h2>' + esc(it.tema) + '</h2><div class="meta">' + nets(it) + '</div>' +
-      (it.copy ? '<div class="copytext">' + esc(it.copy) + '</div>' : '') + acts + '</div></div>';
+      '<div class="info"><div class="meta">' + fCorta(it.fecha) + ' · ' + esc(it.hora) + ' · ' + esc(it.tipo) + ' · subió ' + esc(it.autorNombre) + '</div><h2>' + esc(it.tema) + '</h2>' +
+      '<div class="meta">' + progTag(it.programa) + nets(it) + '</div>' +
+      (it.copy ? '<div class="copytext">' + esc(it.copy) + '</div>' : '') + (it.archivo ? '<div class="actions">' + botonesDrive(it.archivo.id, true) + '</div>' : '') + acts + '</div></div>';
   }).join('') || '<div class="card"><div class="emptyst"><span class="round">' + ic('shield') + '</span><b>Todo revisado</b><p>No hay contenidos esperando aprobación.</p></div></div>';
 
   $('#view').innerHTML =
@@ -1501,12 +1556,28 @@ function mResultados(seq) {
     pintarResultados(d);
   });
 }
+/** Barras de publicaciones por programa (mes actual contra el anterior). */
+function tarjetaPorPrograma(pp) {
+  if (!pp) return '';
+  var nombres = Object.keys(pp.actual).concat(Object.keys(pp.previo)).filter(function (x, i, arr) { return arr.indexOf(x) === i; });
+  nombres.sort(function (a, b) { return (pp.actual[b] || 0) - (pp.actual[a] || 0) || (pp.previo[b] || 0) - (pp.previo[a] || 0); });
+  var max = Math.max.apply(null, nombres.map(function (p) { return Math.max(pp.actual[p] || 0, pp.previo[p] || 0); }).concat([1]));
+  var total = nombres.reduce(function (s, p) { return s + (pp.actual[p] || 0); }, 0);
+  return '<div class="card"><div class="card-h"><div><h2>Publicaciones por programa</h2><p>' + mesLargo(pp.mes) + ' · ' + total + ' publicadas · la barra clara es ' + mesCorto(pp.anterior).toLowerCase() + '</p></div></div>' +
+    (nombres.length ? '<div class="hbars pp">' + nombres.map(function (p) {
+      var a = pp.actual[p] || 0, b = pp.previo[p] || 0;
+      return '<div class="hb"><span title="' + esc(p) + '">' + esc(p) + '</span><div class="tr2"><div class="tr"><div class="fl" style="width:' + (a / max * 100) + '%;background:var(--vino)"></div></div>' +
+        '<div class="tr thin"><div class="fl" style="width:' + (b / max * 100) + '%;background:var(--bar-hatch)"></div></div></div><span class="v">' + a + '</span></div>';
+    }).join('') + '</div>' : '<p class="meta">Aún no hay publicaciones este mes.</p>') + '</div>';
+}
+
 function pintarResultados(d) {
   if (!d.meses.length) {
     $('#view').innerHTML = '<div class="head"><div><h1>Resultados</h1><p class="sub">Facebook e Instagram de la Delegación y del Delegado</p></div></div>' +
       '<div class="card"><div class="emptyst"><span class="round">' + ic('chart') + '</span><b>Todavía no hay métricas</b><p>Se guardan solas el día 1 de cada mes cuando Meta está conectado. ' +
       (S.user.rol === 'admin' ? 'Puedes conectarlo o capturar las cifras a mano en Configuración.' : 'El administrador puede actualizarlas.') + '</p>' +
-      (S.user.rol === 'admin' ? '<button class="btn" data-go="config">' + ic('gear') + 'Ir a Configuración</button>' : '') + '</div></div>';
+      (S.user.rol === 'admin' ? '<button class="btn" data-go="config">' + ic('gear') + 'Ir a Configuración</button>' : '') + '</div></div>' +
+      tarjetaPorPrograma(d.porPrograma);
     bindGo(); return;
   }
   var fila = function (m, k) { return d.filas.filter(function (f) { return f.mes === m && f.cuenta === k; })[0]; };
@@ -1556,7 +1627,8 @@ function pintarResultados(d) {
             '<td data-label="Publicaciones" class="num">' + (f && f.publicaciones !== '' ? fmt(f.publicaciones) : '—') + '</td><td data-label="Interacciones" class="num">' + (f ? fmt(f.interacciones) : '—') + '</td>' +
             '<td data-label="Seguidores" class="num">' + (f && f.seguidores !== '' ? fmt(f.seguidores) : '—') + '</td><td data-label="Fuente">' + (f ? (f.fuente === 'meta' ? 'Meta' : 'Manual') : 'Sin datos') + '</td></tr>';
         }).join('') + '</tbody></table></div></div>' +
-    '</section>';
+    '</section>' +
+    tarjetaPorPrograma(d.porPrograma);
   $$('[data-res]').forEach(function (b) { b.onclick = function () { S.res = b.dataset.res; pintarResultados(d); }; });
 }
 
@@ -1653,6 +1725,8 @@ function pintarConfig(c) {
   $('#view').innerHTML =
     '<div class="head"><div><h1>Configuración</h1><p class="sub">Avisos, conexión con Meta, inteligencia artificial y datos del sistema</p></div></div>' +
     '<section class="cfg">' +
+      editorCatalogo('programas', 'Programas', 'Se usan en publicaciones, agenda, material y resultados. Si cambias un nombre, se actualiza en todo lo que ya lo usaba y en las carpetas de Drive.') +
+      editorCatalogo('formatos', 'Formatos de publicación', 'Aparecen al subir contenido y en las publicaciones sin programar. Si cambias un nombre, se actualiza en todas las publicaciones.') +
       '<div class="card"><h2>Avisos por correo</h2><p class="meta">Los aprobadores reciben un correo cuando hay algo por revisar, y quien lo subió recibe otro cuando se aprueba o se rechaza (con el nombre de quien lo revisó).</p>' +
         '<label class="chk" style="width:fit-content"><input type="checkbox" id="cNot"' + (c.notificar ? ' checked' : '') + '>Enviar avisos por correo</label></div>' +
 
@@ -1696,6 +1770,7 @@ function pintarConfig(c) {
     return call('guardarConfig', datos).then(function (nc) { toast(ok || 'Guardado'); pintarConfig(nc); })
       .catch(function (e) { toast(e.message); });
   };
+  bindCatalogos();
   $('#cNot').onchange = function () { guardarCfg({ notificar: this.checked }, this.checked ? 'Avisos activados' : 'Avisos desactivados'); };
   $('#gSave').onclick = function () { guardarCfg({ geminiKey: $('#gKey').value.trim(), geminiModelo: $('#gMod').value.trim() }); };
   var gd = $('#gDel'); if (gd) gd.onclick = function () { guardarCfg({ geminiKey: 'BORRAR' }, 'Clave eliminada'); };
@@ -1729,6 +1804,45 @@ function pintarConfig(c) {
   $('#sCopy').onclick = function () { copiar(c.appUrl || linkApp(), null, null); };
   var sf = $('#sFix'); if (sf) sf.onclick = function () { guardarCfg({ appUrl: linkApp() }, 'Link de avisos actualizado'); };
   $('#sTask').onclick = function () { call('instalarTareas').then(function () { toast('Tarea mensual programada'); go('config'); }).catch(function (e) { toast(e.message); }); };
+}
+
+/* ---------- Editor de catálogos (Configuración) ---------- */
+function editorCatalogo(tipo, titulo, ayuda) {
+  var lista = tipo === 'programas' ? programas() : formatos();
+  return '<div class="card cat-ed" data-cat="' + tipo + '"><h2>' + titulo + '</h2><p class="meta">' + esc(ayuda) + '</p>' +
+    '<div class="cat-list">' + lista.map(function (x) { return filaCatalogo(x, x); }).join('') + '</div>' +
+    '<div class="actions"><button class="btn ghost sm" data-catadd="' + tipo + '">' + ic('plus') + 'Agregar</button>' +
+    '<button class="btn sm" data-catsave="' + tipo + '">' + ic('save') + 'Guardar</button></div><p class="status" data-catmsg="' + tipo + '"></p></div>';
+}
+function filaCatalogo(orig, valor) {
+  return '<div class="cat-row"><input type="text" maxlength="60" value="' + esc(valor) + '" data-orig="' + esc(orig) + '" aria-label="Nombre">' +
+    '<button class="iconbtn" data-catdel="1" aria-label="Quitar" title="Quitar">' + ic('x') + '</button></div>';
+}
+function bindCatalogos() {
+  var enlazar = function (card) {
+    card.querySelectorAll('[data-catdel]').forEach(function (b) { b.onclick = function () { b.parentNode.remove(); }; });
+  };
+  $$('.cat-ed').forEach(enlazar);
+  $$('[data-catadd]').forEach(function (b) {
+    b.onclick = function () {
+      var card = b.closest('.cat-ed'), list = card.querySelector('.cat-list');
+      list.insertAdjacentHTML('beforeend', filaCatalogo('', '')); enlazar(card);
+      var ins = list.querySelectorAll('input'); ins[ins.length - 1].focus();
+    };
+  });
+  $$('[data-catsave]').forEach(function (b) {
+    b.onclick = function () {
+      var tipo = b.dataset.catsave, card = b.closest('.cat-ed'), msg = card.querySelector('[data-catmsg]');
+      var items = Array.prototype.map.call(card.querySelectorAll('.cat-list input'), function (i) { return { orig: i.dataset.orig, nombre: i.value.trim() }; })
+        .filter(function (x) { return x.nombre; });
+      b.disabled = true; msg.textContent = 'Guardando…';
+      call('guardarCatalogo', { tipo: tipo, items: items }).then(function (r) {
+        S.cat = { programas: r.programas, formatos: r.formatos, municipios: r.municipios };
+        toast('Guardado' + (r.renombrados ? ' · ' + r.renombrados + ' registros actualizados' : ''));
+        go('config');
+      }).catch(function (e) { msg.textContent = e.message; msg.className = 'status err'; b.disabled = false; });
+    };
+  });
 }
 
 /* =========================================================
@@ -1771,7 +1885,7 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
   S.token = leerSesion();
   if (!S.token) { mostrarAcceso(''); return; }
   $('#acceso').hidden = true;
-  call('yo').then(function (u) { S.user = u; entrar(); }).catch(function () { if (!S.user) mostrarAcceso(''); });
+  call('yo').then(function (u) { S.cat = u.catalogos; S.user = u; entrar(); }).catch(function () { if (!S.user) mostrarAcceso(''); });
 })();
 
 })();
