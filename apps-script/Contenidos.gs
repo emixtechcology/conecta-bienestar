@@ -6,7 +6,7 @@
  * queda registrado quién lo revisó y cuándo.
  */
 
-const TIPOS = ['Video', 'Reel', 'Arte', 'Carrusel', 'Historia', 'En vivo'];
+const TIPOS = ['Video', 'Reel', 'Carrusel', 'Historia', 'En vivo', 'Imagen'];
 const PATRONES_LINK = {
   fbDel: /^https?:\/\/(www\.|m\.|web\.)?(facebook\.com|fb\.watch|fb\.com)\//i,
   igDel: /^https?:\/\/(www\.)?instagram\.com\//i,
