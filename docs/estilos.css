@@ -361,6 +361,13 @@ a.btn.danger,.btn.ghost.danger{color:var(--bad)}
 .cat-row .iconbtn{width:38px;height:38px;color:var(--muted)}
 @media (max-width:520px){.hbars.pp .hb{grid-template-columns:110px minmax(0,1fr) 32px}}
 
+.meta-wiz{background:var(--sunk);border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.meta-wiz input{background:var(--card)}
+.meta-wiz select{background:var(--card)}
+details.adv{border:1px solid var(--line);border-radius:16px;padding:12px 14px}
+details.adv summary{cursor:pointer;font-weight:600;font-size:14px;color:var(--vino)}
+details.adv[open]{display:flex;flex-direction:column;gap:12px}
+
 /* Configuración */
 .cfg{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:start}
 @media (max-width:960px){.cfg{grid-template-columns:minmax(0,1fr)}}
