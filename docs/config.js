@@ -3,5 +3,5 @@
  * URL de la aplicación web de Apps Script (el servidor). Termina en /exec.
  */
 window.BC_CONFIG = {
-  API_URL: 'https://script.google.com/macros/s/AKfycby-vUgvqhjerRdwCRzw8F4Q1cSucx7Vb8qEy_dl7CJXFstfMDnbVSjQpbRdvPYLak9EKw/exec'
+  API_URL: 'https://script.google.com/macros/s/AKfycbyjEx-kzxZAGtk-t7UZORC6FAOKuaGGFfITPMfOidQ81NaTngO0fzDgHtZO5_G1pE6yAA/exec'
 };
