@@ -342,6 +342,25 @@ svg.ic-sm{width:15px;height:15px;color:var(--muted)}
 a.btn.danger,.btn.ghost.danger{color:var(--bad)}
 @media (max-width:520px){.mat-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}.mat-info{padding:10px 12px 12px}.mat-info b{font-size:14px}.tiles{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.tile figcaption span{display:none}.tile figcaption{justify-content:center;padding:6px}}
 
+/* Programas */
+.tag.prog{background:var(--oro-soft);color:var(--oro-ink)}
+.ev-p{font-size:11px;font-weight:600;color:var(--oro-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sel-sm{width:auto;min-height:40px;padding:6px 12px;font-size:14px;border-radius:999px;background:var(--card);border:1px solid var(--line)}
+.prog-card .mat-info b{font-size:17px}
+.prog-card .mat-cover{aspect-ratio:16/7}
+.prog-card.empty{opacity:.8}
+.mat-cover .folder{position:absolute;left:12px;bottom:12px;width:40px;height:40px;border-radius:12px;background:rgba(255,255,255,.92);display:grid;place-items:center;color:var(--oro-ink)}
+.mat-cover.vacio svg{width:34px;height:34px;color:var(--oro)}
+.hbars.pp .hb{grid-template-columns:minmax(120px,220px) minmax(0,1fr) 40px}
+.hbars.pp .hb span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tr2{display:flex;flex-direction:column;gap:3px}
+.hb .tr.thin{height:6px}
+.cat-list{display:flex;flex-direction:column;gap:8px;max-height:420px;overflow:auto;padding:2px}
+.cat-row{display:flex;gap:8px;align-items:center}
+.cat-row input{min-height:42px}
+.cat-row .iconbtn{width:38px;height:38px;color:var(--muted)}
+@media (max-width:520px){.hbars.pp .hb{grid-template-columns:110px minmax(0,1fr) 32px}}
+
 /* Configuración */
 .cfg{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:start}
 @media (max-width:960px){.cfg{grid-template-columns:minmax(0,1fr)}}
