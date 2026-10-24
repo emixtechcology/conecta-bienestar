@@ -77,7 +77,7 @@ var CUENTAS = [
   { k: 'fbDto', pagina: 'Delegado', red: 'Facebook', ab: 'FB', re: /^https?:\/\/(www\.|m\.|web\.)?(facebook\.com|fb\.watch|fb\.com)\//i },
   { k: 'igDto', pagina: 'Delegado', red: 'Instagram', ab: 'IG', re: /^https?:\/\/(www\.)?instagram\.com\//i }
 ];
-var TIPOS = ['Video', 'Reel', 'Arte', 'Carrusel', 'Historia', 'En vivo'];
+var TIPOS = ['Video', 'Reel', 'Carrusel', 'Historia', 'En vivo', 'Imagen'];
 var ROL_TXT = { admin: 'Administrador', capturista: 'Capturista', aprobador: 'Aprobador' };
 var ROL_DESC = { admin: 'Acceso total', capturista: 'Sube y edita contenidos', aprobador: 'Revisa y aprueba' };
 var MODS = {
