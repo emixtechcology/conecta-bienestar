@@ -1735,14 +1735,23 @@ function pintarConfig(c) {
         '<div><label class="l" for="gMod">Modelo</label><input type="text" id="gMod" value="' + esc(c.gemini.modelo) + '"></div>' +
         '<div class="actions"><button class="btn" id="gSave">' + ic('save') + 'Guardar</button>' + (c.gemini.tieneClave ? '<button class="btn ghost" id="gDel">Quitar clave</button>' : '') + '</div></div>' +
 
-      '<div class="card"><h2>Conexión con Meta</h2><p class="meta">IDs numéricos de cada página de Facebook y de su cuenta de Instagram profesional, y el token de cada página. El token de la página también sirve para su Instagram.</p>' +
+      '<div class="card"><h2>Conexión con Meta</h2>' +
+        '<div class="meta-wiz"><h3>Asistente de conexión</h3><p class="meta">Pega los 3 datos de tu app de Meta. El sistema encuentra tus páginas, su Instagram y los tokens permanentes; tú solo eliges cuál es cuál.</p>' +
+          '<div class="form"><div><label class="l" for="wApp">ID de la app</label><input type="text" inputmode="numeric" id="wApp" autocomplete="off" placeholder="Ej. 1234567890123456"></div>' +
+          '<div><label class="l" for="wSec">Clave secreta de la app</label><input type="password" id="wSec" autocomplete="off" placeholder="Configuración de la app → Básica"></div>' +
+          '<div class="full"><label class="l" for="wTok">Token del Explorador de la API Graph</label><input type="password" id="wTok" autocomplete="off" placeholder="Empieza con EAA… (dura 1 hora)"></div></div>' +
+          '<div class="actions"><button class="btn" id="wGo">' + ic('link') + 'Conectar y buscar mis páginas</button></div>' +
+          '<div id="wPaso2"></div><p class="status" id="wMsg" aria-live="polite"></p></div>' +
+        '<details class="adv"><summary>Datos actuales y captura manual de IDs</summary>' +
+        '<p class="meta">IDs numéricos de cada página de Facebook y de su cuenta de Instagram profesional, y el token de cada página. El asistente los llena solo.</p>' +
         '<div class="form">' +
           CUENTAS.map(function (a) { return '<div><label class="l" for="mid-' + a.k + '">ID ' + a.red + ' ' + a.pagina + '</label><input type="text" inputmode="numeric" id="mid-' + a.k + '" value="' + esc(c.meta.cuentas[a.k]) + '"></div>'; }).join('') +
           '<div><label class="l" for="tDel">Token página Delegación</label><input type="password" id="tDel" autocomplete="off" placeholder="' + (c.meta.tokenDel ? 'Guardado' : 'Pega el token') + '"></div>' +
           '<div><label class="l" for="tDto">Token página Delegado</label><input type="password" id="tDto" autocomplete="off" placeholder="' + (c.meta.tokenDto ? 'Guardado' : 'Pega el token') + '"></div>' +
           '<div><label class="l" for="mVer">Versión de la API</label><input type="text" id="mVer" value="' + esc(c.meta.version) + '"></div>' +
         '</div>' +
-        '<div class="actions"><button class="btn" id="mSave">' + ic('save') + 'Guardar</button><button class="btn ghost" id="mTest">Probar conexión</button></div>' +
+        '<div class="actions"><button class="btn ghost" id="mSave">' + ic('save') + 'Guardar</button></div></details>' +
+        '<div class="actions"><button class="btn ghost" id="mTest">Probar conexión</button></div>' +
         '<div class="reslist" id="mRes"></div>' +
         '<div style="border-top:1px solid var(--line);padding-top:14px" class="stack"><h3>Actualizar métricas ahora</h3><div class="actions"><input type="month" id="mMes" value="' + mesActual + '" style="width:auto"><button class="btn dark" id="mRun">' + ic('refresh') + 'Actualizar</button></div><div class="reslist" id="mRun2"></div></div></div>' +
 
@@ -1774,6 +1783,33 @@ function pintarConfig(c) {
   $('#cNot').onchange = function () { guardarCfg({ notificar: this.checked }, this.checked ? 'Avisos activados' : 'Avisos desactivados'); };
   $('#gSave').onclick = function () { guardarCfg({ geminiKey: $('#gKey').value.trim(), geminiModelo: $('#gMod').value.trim() }); };
   var gd = $('#gDel'); if (gd) gd.onclick = function () { guardarCfg({ geminiKey: 'BORRAR' }, 'Clave eliminada'); };
+  // Asistente de conexión con Meta
+  var wMsg = function (t, err) { var m = $('#wMsg'); m.textContent = t; m.className = 'status' + (err ? ' err' : ''); };
+  $('#wGo').onclick = function () {
+    var b = this, datos = { appId: $('#wApp').value.trim(), appSecret: $('#wSec').value.trim(), tokenCorto: $('#wTok').value.trim() };
+    if (!datos.appId || !datos.appSecret || !datos.tokenCorto) { wMsg('Llena los 3 datos.', true); return; }
+    b.disabled = true; wMsg('Conectando con Meta…');
+    call('conectarMeta', datos).then(function (r) {
+      wMsg('Encontré ' + r.paginas.length + (r.paginas.length === 1 ? ' página' : ' páginas') + '. Elige cuál es cuál y guarda.');
+      var ops = function (sel) {
+        return '<option value="">No conectar</option>' + r.paginas.map(function (p) {
+          return '<option value="' + esc(p.id) + '"' + (p.id === sel ? ' selected' : '') + '>' + esc(p.nombre) + (p.ig ? ' · IG @' + esc(p.ig.usuario || p.ig.id) : ' · sin Instagram') + '</option>';
+        }).join('');
+      };
+      $('#wPaso2').innerHTML = '<div class="form" style="margin-top:12px"><div><label class="l" for="wDel">Página de la Delegación</label><select id="wDel">' + ops(r.actual.del) + '</select></div>' +
+        '<div><label class="l" for="wDto">Página del Delegado</label><select id="wDto">' + ops(r.actual.dto) + '</select></div></div>' +
+        '<div class="actions"><button class="btn" id="wSave">' + ic('check') + 'Guardar y probar</button></div>';
+      $('#wSave').onclick = function () {
+        var s2 = this; s2.disabled = true; wMsg('Guardando y probando…');
+        call('asignarPaginasMeta', { del: $('#wDel').value, dto: $('#wDto').value }).then(function (x) {
+          lista($('#mRes'), x.prueba, 'mensaje');
+          wMsg(x.sinInstagram.length ? 'Listo. Ojo: ' + x.sinInstagram.join(' y ') + ' no tiene Instagram profesional vinculado; solo se medirá Facebook.' : 'Listo, conexión guardada. Abajo ves la prueba de cada cuenta.');
+          $('#wTok').value = ''; $('#wSec').value = '';
+          toast('Meta conectado');
+        }).catch(function (e) { wMsg(e.message, true); s2.disabled = false; });
+      };
+    }).catch(function (e) { wMsg(e.message, true); }).then(function () { b.disabled = false; });
+  };
   $('#mSave').onclick = function () {
     var cuentas = {}; CUENTAS.forEach(function (a) { cuentas[a.k] = $('#mid-' + a.k).value.trim(); });
     guardarCfg({ cuentas: cuentas, tokenDel: $('#tDel').value.trim(), tokenDto: $('#tDto').value.trim(), metaVersion: $('#mVer').value.trim() });
