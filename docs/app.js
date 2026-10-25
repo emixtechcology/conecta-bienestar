@@ -18,6 +18,7 @@ var IC = {
   layers:'<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>',
   folder:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
   search:'<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>',
+  doc:'<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/>',
   image:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5L5 20"/>',
   copy:'<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>',
   spark:'<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.7 1.8 1.8.7-1.8.7L19 20l-.7-1.8-1.8-.7 1.8-.7z"/>',
@@ -533,9 +534,9 @@ function mInicio(seq) {
         '<div class="card"><div class="card-h"><div><h2>Agenda</h2><p>Eventos de los próximos 7 días</p></div><button class="round" data-go="agenda" aria-label="Ir a la Agenda">' + ic('arrow') + '</button></div>' +
           ((d.agenda || []).length ? '<div class="ag-mini">' + d.agenda.map(function (e) {
             var mio = (e.asignados || []).some(function (a) { return a.id === u.id; });
-            var p = parse(e.fecha);
+            var p = parse(e.fecha < today() ? today() : e.fecha);
             return '<div class="ag-mrow' + (mio ? ' mine' : '') + '"><div class="d">' + p.getDate() + '<small>' + DIAS[p.getDay()] + '</small></div>' +
-              '<div style="min-width:0"><b>' + esc(e.titulo) + '</b><span>' + esc(e.hora) + (e.municipio ? ' · ' + esc(e.municipio) : '') + ' · ' +
+              '<div style="min-width:0"><b>' + esc(e.titulo) + '</b><span>' + (variosDias(e) ? esc(rangoEv(e, true).replace(/^d/, 'D')) + ' · ' : '') + esc(e.hora) + (e.municipio ? ' · ' + esc(e.municipio) : '') + ' · ' +
               (e.asignados.length ? esc(e.asignados.map(function (a) { return a.nombre.split(' ')[0]; }).join(', ')) : 'Sin asignar') + '</span></div>' +
               (mio ? '<span class="tag ok">Te toca</span>' : !e.asignados.length ? '<span class="tag warn">Sin asignar</span>' : '') + '</div>';
           }).join('') + '</div>'
@@ -681,7 +682,7 @@ function pintarTV() {
     var fin = e.horaFin || (pad(Math.min(23, Number(e.hora.slice(0, 2)) + 2)) + e.hora.slice(2));
     var cuando = e.estado !== 'Pendiente' ? e.estado.toLowerCase() : ahora < e.hora ? 'próximo' : ahora <= fin ? 'en curso' : 'ya pasó';
     return '<div class="tv-mini' + (cuando === 'en curso' ? ' live' : '') + '"><div class="d">' + esc(e.hora) + '<small>' + esc(cuando) + '</small></div>' +
-      '<div style="min-width:0"><b>' + esc(e.titulo) + '</b><span>' + esc([e.lugar, e.municipio].filter(Boolean).join(' · ') || 'Lugar por confirmar') + ' · ' +
+      '<div style="min-width:0"><b>' + esc(e.titulo) + '</b><span>' + (variosDias(e) ? 'Día ' + diaDeEv(e, today()) + ' de ' + totalDiasEv(e) + ' · ' : '') + esc([e.lugar, e.municipio].filter(Boolean).join(' · ') || 'Lugar por confirmar') + ' · ' +
       (e.asignados.length ? 'cubre ' + esc(e.asignados.map(function (a) { return a.nombre.split(' ')[0]; }).join(', ')) : 'sin asignar') + '</span></div></div>';
   }).join('') + mas : '<p class="tv-empty">Sin eventos agendados para hoy.</p>';
   var ticker = (d.actividad || []).slice(0, 2).map(function (l) {
@@ -884,6 +885,18 @@ function pintarParrilla(lista) {
    Módulo: Agenda de eventos y coberturas
    ========================================================= */
 var AG_ESTADO = { 'Pendiente': 'rev', 'Cubierto': 'pub', 'No se cubrió': 'rech', 'Cancelado': 'bor' };
+/** Eventos de varios días: último día, si dura más de uno y texto "del 24 al 26 de octubre". */
+function finEv(e) { return e.fechaFin && e.fechaFin > e.fecha ? e.fechaFin : e.fecha; }
+function variosDias(e) { return finEv(e) !== e.fecha; }
+function enDia(e, f) { return e.fecha <= f && finEv(e) >= f; }
+function rangoEv(e, corto) {
+  if (!variosDias(e)) return '';
+  var a = parse(e.fecha), b = parse(finEv(e));
+  if (a.getMonth() === b.getMonth()) return 'del ' + a.getDate() + ' al ' + b.getDate() + (corto ? ' ' + MES[b.getMonth()] : ' de ' + MESL[b.getMonth()]);
+  return 'del ' + a.getDate() + ' ' + MES[a.getMonth()] + ' al ' + b.getDate() + ' ' + MES[b.getMonth()];
+}
+function diaDeEv(e, f) { return Math.round((parse(f) - parse(e.fecha)) / 864e5) + 1; }
+function totalDiasEv(e) { return Math.round((parse(finEv(e)) - parse(e.fecha)) / 864e5) + 1; }
 function puedeEditarEv(e) { return S.user.rol === 'admin' || e.creadoPor === S.user.id; }
 function asignadoA(e, id) { return (e.asignados || []).some(function (a) { return a.id === id; }); }
 function puedeCerrarEv(e) { return puedeEditarEv(e) || asignadoA(e, S.user.id); }
@@ -911,10 +924,23 @@ function pintarAgenda() {
 
   var dias = [0, 1, 2, 3, 4, 5, 6].map(function (i) {
     var f = addDays(S.aWeek, i);
-    return { f: f, ev: lista.filter(function (e) { return e.fecha === f; }) };
+    return { f: f, ev: lista.filter(function (e) { return enDia(e, f); }) };
   }).filter(function (x) { return x.ev.length || x.f === hoy; });
 
-  var tarjeta = function (e) {
+  // Un evento de varios días se muestra completo el primer día visible de la semana; los demás días, en corto.
+  // Día con la tarjeta completa: hoy, si el evento está en curso y hoy se ve; si no, el primer día visible.
+  var primerDia = function (e) {
+    var vis = dias.filter(function (x) { return x.ev.indexOf(e) > -1; }).map(function (x) { return x.f; });
+    return vis.indexOf(hoy) > -1 ? hoy : vis[0];
+  };
+  var tarjeta = function (e, f) {
+    if (variosDias(e) && f && f !== primerDia(e)) {
+      return '<article class="ag-ev cont' + (asignadoA(e, u.id) && e.estado === 'Pendiente' ? ' mine' : '') + (e.estado === 'Cancelado' ? ' off' : '') + '">' +
+        '<div class="ag-hora"><b>' + esc(e.hora) + '</b>' + (e.horaFin ? '<small>a ' + esc(e.horaFin) + '</small>' : '') + '</div>' +
+        '<div class="ag-body"><div class="ag-top"><span class="tag multi">' + ic('calendar', 'i ic-sm') + 'Día ' + diaDeEv(e, f) + ' de ' + totalDiasEv(e) + '</span><span class="st ' + (AG_ESTADO[e.estado] || 'rev') + '">' + esc(e.estado) + '</span>' +
+          (asignadoA(e, u.id) && e.estado === 'Pendiente' ? '<span class="tag ok">Te toca</span>' : '') + '</div>' +
+        '<h3>' + esc(e.titulo) + '</h3><p class="meta">Continúa · ' + esc(rangoEv(e)) + (e.municipio ? ' · ' + esc(e.municipio) : '') + '. Los detalles y opciones están el ' + fCorta(primerDia(e)) + '.</p></div></article>';
+    }
     var acc = [];
     var abierta = S.aAccion && S.aAccion.id === e.id ? S.aAccion : null;
     if (abierta && abierta.tipo === 'borrar') {
@@ -955,6 +981,7 @@ function pintarAgenda() {
           (!e.asignados.length && e.estado === 'Pendiente' ? '<span class="tag warn">Sin asignar</span>' : '') +
           (e.contenidoId ? '<span class="tag ok">' + ic('link', 'i ic-sm') + 'Publicación ligada</span>' : '') + '</div>' +
         '<h3>' + esc(e.titulo) + '</h3>' +
+        (variosDias(e) ? '<p class="ag-line multi">' + ic('calendar', 'i ic-sm') + '<b>' + esc(rangoEv(e).replace(/^d/, 'D')) + '</b>' + (f ? ' · día ' + diaDeEv(e, f) + ' de ' + totalDiasEv(e) : '') + '</p>' : '') +
         (lugar ? '<p class="ag-line">' + ic('pin', 'i ic-sm') + esc(lugar) + '</p>' : '') +
         (e.requiere.length ? '<p class="ag-line">' + ic('camera', 'i ic-sm') + e.requiere.map(function (r) { return '<span class="net">' + esc(r) + '</span>'; }).join(' ') + '</p>' : '') +
         '<div class="ag-line">' + ic('users', 'i ic-sm') + (e.asignados.length ? '<span class="avs">' + e.asignados.map(function (a) {
@@ -972,7 +999,7 @@ function pintarAgenda() {
     var p = parse(x.f);
     return '<section class="card ag-day' + (x.f === hoy ? ' today' : '') + '"><div class="ag-dh"><b>' + p.getDate() + '</b><div><span>' + DIASL[p.getDay()].replace(/^./, function (c) { return c.toUpperCase(); }) + (x.f === hoy ? ' · hoy' : '') + '</span><small>' + MESL[p.getMonth()] + '</small></div>' +
       '<span class="tag" style="margin-left:auto">' + x.ev.length + (x.ev.length === 1 ? ' evento' : ' eventos') + '</span></div>' +
-      (x.ev.length ? x.ev.map(tarjeta).join('') : '<p class="meta" style="padding:4px 2px">Sin eventos hoy.</p>') + '</section>';
+      (x.ev.length ? x.ev.map(function (e) { return tarjeta(e, x.f); }).join('') : '<p class="meta" style="padding:4px 2px">Sin eventos hoy.</p>') + '</section>';
   }).join('') : '<div class="card"><div class="emptyst"><span class="round">' + ic('pin') + '</span><b>' + (S.aFiltro === 'todos' ? 'Sin eventos esta semana' : 'Nada con este filtro') + '</b><p>Registra los eventos del delegado o de la Delegación donde hay que ir a recoger fotos o video.</p><button class="btn" id="agNuevo2">' + ic('plus') + 'Agendar evento</button></div></div>';
 
   $('#view').innerHTML =
@@ -1053,9 +1080,12 @@ function formEvento(e) {
       '<div><label class="l" for="evT">Evento</label><input type="text" id="evT" maxlength="200" value="' + esc(e ? e.titulo : '') + '" placeholder="Ej. Entrega de tarjetas de Pensión Bienestar"></div>' +
       '<div><label class="l" for="evP">Programa</label><select id="evP">' + opciones(programas(), e ? e.programa : '', 'Elige el programa…') + '</select></div>' +
       '<div><label class="l" for="evTipo">Tipo</label><select id="evTipo">' + c.tipos.map(function (t) { return '<option' + (e && e.tipo === t ? ' selected' : '') + '>' + esc(t) + '</option>'; }).join('') + '</select></div>' +
-      '<div class="form"><div><label class="l" for="evF">Fecha</label><input type="date" id="evF" value="' + esc(e ? e.fecha : (S.aWeek && S.aWeek > today() ? S.aWeek : today())) + '"></div>' +
-      '<div><label class="l" for="evH">Hora</label><input type="time" id="evH" value="' + esc(e ? e.hora : '10:00') + '"></div>' +
+      '<label class="chk" style="width:fit-content"><input type="checkbox" id="evVD"' + (e && variosDias(e) ? ' checked' : '') + '>Dura varios días</label>' +
+      '<div class="form"><div><label class="l" for="evF" id="evFL">' + (e && variosDias(e) ? 'Fecha de inicio' : 'Fecha') + '</label><input type="date" id="evF" value="' + esc(e ? e.fecha : (S.aWeek && S.aWeek > today() ? S.aWeek : today())) + '"></div>' +
+      '<div id="evFFw"' + (e && variosDias(e) ? '' : ' hidden') + '><label class="l" for="evFF">Fecha de término</label><input type="date" id="evFF" value="' + esc(e && variosDias(e) ? finEv(e) : '') + '"></div>' +
+      '<div><label class="l" for="evH" id="evHL">' + (e && variosDias(e) ? 'Hora (cada día)' : 'Hora') + '</label><input type="time" id="evH" value="' + esc(e ? e.hora : '10:00') + '"></div>' +
       '<div><label class="l" for="evHF">Termina (opcional)</label><input type="time" id="evHF" value="' + esc(e ? e.horaFin : '') + '"></div>' +
+      '<p class="meta full" id="evDur"></p>' +
       '<div><label class="l" for="evM">Municipio</label><select id="evM"><option value="">Elige…</option>' + c.municipios.map(function (m) { return '<option' + (e && e.municipio === m ? ' selected' : '') + '>' + esc(m) + '</option>'; }).join('') + '</select></div></div>' +
       '<div><label class="l" for="evL">Lugar</label><input type="text" id="evL" maxlength="200" value="' + esc(e ? e.lugar : '') + '" placeholder="Ej. Domo de la colonia, cancha ejidal…"></div>' +
       '<div><span class="l">¿Qué hay que recoger?</span><div class="chips">' + c.requiere.map(function (r) { return '<label class="chk"><input type="checkbox" data-req="' + esc(r) + '"' + (req.indexOf(r) > -1 ? ' checked' : '') + '>' + esc(r) + '</label>'; }).join('') + '</div></div>' +
@@ -1064,17 +1094,33 @@ function formEvento(e) {
       '<div><label class="l" for="evN">Notas (opcional)</label><textarea id="evN" placeholder="Indicaciones, tomas importantes, invitados…">' + esc(e ? e.notas : '') + '</textarea></div>' +
       '<button class="btn" type="submit" id="evG">' + ic('save') + (e ? 'Guardar cambios' : 'Agendar') + '</button><p class="status err" id="evMsg"></p>' +
     '</form>');
+  var vd = $('#evVD');
+  var duracion = function () {
+    var a = $('#evF').value, b = $('#evFF').value;
+    $('#evDur').textContent = vd.checked && a && b && b > a ? 'Dura ' + (Math.round((parse(b) - parse(a)) / 864e5) + 1) + ' días: aparece en la Agenda cada día, ' + rangoEv({ fecha: a, fechaFin: b }) + '.' : '';
+  };
+  vd.onchange = function () {
+    $('#evFFw').hidden = !vd.checked;
+    $('#evFL').textContent = vd.checked ? 'Fecha de inicio' : 'Fecha';
+    $('#evHL').textContent = vd.checked ? 'Hora (cada día)' : 'Hora';
+    if (vd.checked && !$('#evFF').value && $('#evF').value) $('#evFF').value = addDays($('#evF').value, 1);
+    duracion();
+  };
+  $('#evF').onchange = function () { if (vd.checked && $('#evFF').value && $('#evFF').value <= $('#evF').value) $('#evFF').value = addDays($('#evF').value, 1); duracion(); };
+  $('#evFF').onchange = duracion;
+  duracion();
   $('#fEv').onsubmit = function (ev) {
     ev.preventDefault();
     var datos = {
       id: e ? e.id : null, titulo: $('#evT').value.trim(), programa: $('#evP').value, tipo: $('#evTipo').value, fecha: $('#evF').value, hora: $('#evH').value,
-      horaFin: $('#evHF').value, municipio: $('#evM').value, lugar: $('#evL').value, contacto: $('#evC').value, notas: $('#evN').value,
+      fechaFin: vd.checked ? $('#evFF').value : '', horaFin: $('#evHF').value, municipio: $('#evM').value, lugar: $('#evL').value, contacto: $('#evC').value, notas: $('#evN').value,
       requiere: $$('[data-req]').filter(function (x) { return x.checked; }).map(function (x) { return x.dataset.req; }),
       asignados: $$('[data-asig]').filter(function (x) { return x.checked; }).map(function (x) { return x.dataset.asig; })
     };
     if (!datos.titulo) { $('#evMsg').textContent = 'Escribe de qué se trata el evento.'; $('#evT').focus(); return; }
     if (!datos.programa) { $('#evMsg').textContent = 'Elige el programa del evento.'; $('#evP').focus(); return; }
     if (!datos.fecha || !datos.hora) { $('#evMsg').textContent = 'Escribe la fecha y la hora.'; return; }
+    if (vd.checked && (!datos.fechaFin || datos.fechaFin <= datos.fecha)) { $('#evMsg').textContent = 'La fecha de término debe ser después de la de inicio.'; $('#evFF').focus(); return; }
     $('#evG').disabled = true;
     call('guardarEvento', datos).then(function (r) {
       cerrarModal(); toast(e ? 'Evento actualizado' : 'Evento agendado');
@@ -1711,6 +1757,18 @@ function tarjetaPorPrograma(pp) {
 }
 
 function pintarResultados(d) {
+  if (d.meses.length && S.resVista !== 'tablero') { pintarReporte(d); return; }
+  pintarTablero(d);
+}
+function pestanasResultados() {
+  return '<div class="seg no-print" role="group" aria-label="Vista de resultados">' +
+    '<button data-rv="reporte" aria-pressed="' + (S.resVista !== 'tablero') + '">' + ic('doc', 'i ic-sm') + 'Reporte del mes</button>' +
+    '<button data-rv="tablero" aria-pressed="' + (S.resVista === 'tablero') + '">' + ic('chart', 'i ic-sm') + 'Tablero</button></div>';
+}
+function bindPestanas(d) {
+  $$('[data-rv]').forEach(function (b) { b.onclick = function () { S.resVista = b.dataset.rv; pintarResultados(d); window.scrollTo(0, 0); }; });
+}
+function pintarTablero(d) {
   if (!d.meses.length) {
     $('#view').innerHTML = '<div class="head"><div><h1>Resultados</h1><p class="sub">Facebook e Instagram de la Delegación y del Delegado</p></div></div>' +
       '<div class="card"><div class="emptyst"><span class="round">' + ic('chart') + '</span><b>Todavía no hay métricas</b><p>Se guardan solas el día 1 de cada mes cuando Meta está conectado. ' +
@@ -1734,7 +1792,7 @@ function pintarResultados(d) {
   var totalNuevos = segs.reduce(function (s, x) { return s + (x[1] || 0); }, 0);
 
   $('#view').innerHTML =
-    '<div class="head"><div><h1>Resultados</h1><p class="sub">' + mesLargo(ult) + ' · se actualiza el día 1 de cada mes</p></div></div>' +
+    '<div class="head"><div><h1>Resultados</h1><p class="sub">' + mesLargo(ult) + ' · se actualiza el día 1 de cada mes</p></div>' + pestanasResultados() + '</div>' +
     '<div class="seg" role="group" aria-label="Cuenta">' + opts.map(function (o) { return '<button data-res="' + o[0] + '" aria-pressed="' + (k === o[0]) + '">' + o[1] + '</button>'; }).join('') + '</div>' +
     '<section class="kpis">' +
       '<div class="card kpi hero"><span class="lbl">Interacciones</span><div class="big">' + fmt(tot) + '</div><div class="meta">' + (prev ? dl(tot, suma(prev, k, 'interacciones')) + ' vs ' + mesCorto(prev).toLowerCase() : 'Primer mes registrado') + '</div></div>' +
@@ -1769,6 +1827,283 @@ function pintarResultados(d) {
     '</section>' +
     tarjetaPorPrograma(d.porPrograma);
   $$('[data-res]').forEach(function (b) { b.onclick = function () { S.res = b.dataset.res; pintarResultados(d); }; });
+  bindPestanas(d);
+}
+
+/* =========================================================
+   Resultados · Reporte del mes (como el análisis de redes en PDF)
+   Comparativo mes contra mes anterior, para la Delegación, el Delegado o ambas.
+   ========================================================= */
+var FMT_ORDEN = ['Reels', 'Videos', 'Varias fotos', 'Carrusel', 'Fotografías', 'Historias', 'Enlaces', 'Texto y otros'];
+function mesAnt(m) { var p = m.split('-').map(Number); return p[1] === 1 ? (p[0] - 1) + '-12' : p[0] + '-' + ('0' + (p[1] - 1)).slice(-2); }
+function pct1(a, b) { return b ? ((a - b) / b * 100) : null; }
+function pctTxt(v) { return v === null ? '—' : (v > 0 ? '+' : '') + v.toFixed(1) + '%'; }
+function nomCta(a) { return a.red + ' ' + a.pagina; }
+function listaY(xs) { return xs.length < 2 ? xs.join('') : xs.slice(0, -1).join(', ') + ' y ' + xs[xs.length - 1]; }
+function duracionTxt(min) {
+  if (min === null || min === undefined) return '';
+  var d = Math.floor(min / 1440), h = Math.floor((min % 1440) / 60), m = min % 60;
+  return d ? d + (d === 1 ? ' día ' : ' días ') + h + ' h' : h ? h + ' h ' + m + ' min' : m + ' min';
+}
+function numOk(v) { return v !== '' && v !== null && v !== undefined && isFinite(Number(v)); }
+function iconoRed(a) { return '<span class="red-ic ' + (a.red === 'Facebook' ? 'fb' : 'ig') + '">' + a.ab + '</span>'; }
+
+/** Dos barras: mes anterior (clara) y mes actual (oscura), como en el reporte. */
+function parBarras(prev, act, max) {
+  var h = function (v) { return numOk(v) && max ? Math.max(4, Number(v) / max * 100) : 0; };
+  return '<div class="pares"><div class="par"><span class="pv">' + (numOk(prev) ? fmt(prev) : '—') + '</span><i class="b ant" style="height:' + h(prev) + '%"></i></div>' +
+    '<div class="par"><span class="pv">' + (numOk(act) ? fmt(act) : '—') + '</span><i class="b act" style="height:' + h(act) + '%"></i></div></div>';
+}
+function leyendaMeses(ant, mes) {
+  return '<div class="leyenda"><span><i class="ant"></i>' + mesLargo(ant) + '</span><span><i class="act"></i>' + mesLargo(mes) + '</span></div>';
+}
+
+function pintarReporte(d) {
+  var meses = d.meses.slice().reverse();
+  if (!S.repMes || meses.indexOf(S.repMes) === -1) S.repMes = meses[0];
+  var pag = S.repPag || 'ambas';
+  var mes = S.repMes, ant = mesAnt(mes);
+  var fila = function (m, k) { return d.filas.filter(function (f) { return f.mes === m && f.cuenta === k; })[0] || null; };
+  var ctas = CUENTAS.filter(function (a) { return pag === 'ambas' || (pag === 'del' ? a.pagina === 'Delegación' : a.pagina === 'Delegado'); })
+    .map(function (a) {
+      var f = fila(mes, a.k), p = fila(ant, a.k), det = (f && f.detalle) || {};
+      var segA = f && numOk(f.seguidores) ? Number(f.seguidores) : null, segP = p && numOk(p.seguidores) ? Number(p.seguidores) : null;
+      return {
+        a: a, f: f, p: p, det: det, nombre: nomCta(a),
+        usuario: det.usuario || det.nombre || '',
+        segA: segA, segP: segP, crec: segA !== null && segP !== null ? segA - segP : null, crecP: segA !== null && segP ? pct1(segA, segP) : null,
+        vis: f && numOk(f.vistas) ? Number(f.vistas) : null, visP: p && numOk(p.vistas) ? Number(p.vistas) : null,
+        int: f ? Number(f.interacciones) || 0 : null, intP: p ? Number(p.interacciones) || 0 : null
+      };
+    });
+  var conDatos = ctas.filter(function (c) { return c.f; });
+  var titPag = pag === 'ambas' ? 'Delegación y Delegado' : pag === 'del' ? 'Delegación' : 'Delegado';
+
+  var cab = '<div class="head rep-head"><div><span class="kicker">Análisis de redes sociales · ' + titPag + '</span><h1>Comparativo ' + mesLargo(ant).toLowerCase() + ' vs ' + mesLargo(mes).toLowerCase() + '</h1>' +
+      '<p class="sub">Facebook e Instagram · datos de Meta' + (conDatos.some(function (c) { return c.f.fuente === 'manual'; }) ? ' y captura manual' : '') + '</p></div>' + pestanasResultados() + '</div>' +
+    '<div class="rep-ctrl no-print"><label class="l" for="repMes">Mes</label><select id="repMes">' + meses.map(function (m) { return '<option value="' + m + '"' + (m === mes ? ' selected' : '') + '>' + mesLargo(m) + '</option>'; }).join('') + '</select>' +
+      '<div class="seg" role="group" aria-label="Página">' + [['ambas', 'Ambas páginas'], ['del', 'Delegación'], ['dto', 'Delegado']].map(function (o) { return '<button data-rpag="' + o[0] + '" aria-pressed="' + (pag === o[0]) + '">' + o[1] + '</button>'; }).join('') + '</div>' +
+      '<button class="btn ghost" id="repPdf">' + ic('download') + 'Descargar PDF</button></div>';
+
+  if (!conDatos.length) {
+    $('#view').innerHTML = cab + '<div class="card"><div class="emptyst"><span class="round">' + ic('chart') + '</span><b>No hay datos de ' + mesLargo(mes) + ' para ' + titPag + '</b><p>Elige otro mes o actualiza las métricas en Configuración.</p></div></div>';
+    bindReporte(d); return;
+  }
+
+  // 1) Crecimiento de audiencia
+  var s1 = '<section class="card rep-sec"><h2><span class="num">1</span>Crecimiento de audiencia</h2>' +
+    '<div class="tbl"><table class="rep-t"><thead><tr><th>Red social</th>' + ctas.map(function (c) { return '<th colspan="2">' + iconoRed(c.a) + c.nombre + (c.usuario ? '<small>' + esc(c.usuario) + '</small>' : '') + '</th>'; }).join('') + '</tr>' +
+    '<tr class="sub"><th>Mes</th>' + ctas.map(function () { return '<th>' + mesCorto(ant) + '</th><th>' + mesCorto(mes) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+    '<tr><th>Seguidores</th>' + ctas.map(function (c) { return '<td>' + (c.segP !== null ? fmt(c.segP) : '—') + '</td><td><b>' + (c.segA !== null ? fmt(c.segA) : '—') + '</b></td>'; }).join('') + '</tr>' +
+    '<tr><th>Crecimiento absoluto</th>' + ctas.map(function (c) { return '<td colspan="2" class="crec' + (c.crec < 0 ? ' neg' : '') + '">' + (c.crec !== null ? (c.crec > 0 ? '+' : '') + fmt(c.crec) : '—') + '</td>'; }).join('') + '</tr>' +
+    '<tr><th>Crecimiento porcentual</th>' + ctas.map(function (c) { return '<td colspan="2" class="crec' + (c.crecP < 0 ? ' neg' : '') + '">' + pctTxt(c.crecP) + '</td>'; }).join('') + '</tr>' +
+    '</tbody></table></div>' + parrafos(textoCrecimiento(ctas, mes, ant)) + '</section>';
+
+  // 2) Alcance y visualizaciones
+  var s2 = '<section class="card rep-sec"><h2><span class="num">2</span>Alcance y visualizaciones</h2>' + leyendaMeses(ant, mes) +
+    '<p class="meta">Muestran qué tanto llegó el contenido a la audiencia y cuánta exposición tuvo cada cuenta en el periodo.</p>' +
+    '<div class="rep-grid">' + ctas.map(function (c) {
+      var f = c.f || {}, det = c.det, dts = [];
+      if (numOk(f.alcance)) dts.push([c.a.red === 'Facebook' ? 'Espectadores (28 días)' : 'Alcance', fmt(f.alcance) + (c.a.red === 'Instagram' ? ' cuentas' : '')]);
+      if (numOk(f.visitasPerfil)) dts.push([c.a.red === 'Facebook' ? 'Visitas a la página' : 'Visitas al perfil', fmt(f.visitasPerfil)]);
+      if (det.tiempoMin) dts.push(['Tiempo de reproducción', duracionTxt(det.tiempoMin)]);
+      if (det.formatos && det.formatos.Historias) dts.push(['Vistas de historias', fmt(det.formatos.Historias.vistas)]);
+      return '<div class="rep-cta"><h3>' + iconoRed(c.a) + c.nombre + '</h3>' + parBarras(c.visP, c.vis, Math.max(c.vis || 0, c.visP || 0)) +
+        '<p class="cambio">' + (c.vis !== null && c.visP ? dl(c.vis, c.visP) + ' vs ' + mesCorto(ant).toLowerCase() : '&nbsp;') + '</p>' +
+        (dts.length ? '<dl class="kv sm">' + dts.map(function (x) { return '<dt>' + x[0] + '</dt><dd>' + x[1] + '</dd>'; }).join('') + '</dl>' : '') + '</div>';
+    }).join('') + '</div>' + parrafos(textoRanking(ctas, 'vis', 'visP', 'visualizaciones', mes, ant)) + '</section>';
+
+  // 3) Interacciones
+  var s3 = '<section class="card rep-sec"><h2><span class="num">3</span>Interacciones <small>(reacciones, comentarios y compartidos)</small></h2>' + leyendaMeses(ant, mes) +
+    '<div class="rep-grid">' + ctas.map(function (c) {
+      var f = c.f || {}, ig = c.a.red === 'Instagram';
+      var dts = c.f ? [[ig ? 'Me gusta' : 'Reacciones', fmt(f.reacciones)], ['Comentarios', fmt(f.comentarios)], ['Compartidos', fmt(f.compartidos)]] : [];
+      if (ig && c.det.guardados) dts.push(['Guardados', fmt(c.det.guardados)]);
+      if (c.f && numOk(f.publicaciones) && Number(f.publicaciones)) dts.push(['Promedio por publicación', fmt(Number(f.interacciones) / Number(f.publicaciones))]);
+      return '<div class="rep-cta"><h3>' + iconoRed(c.a) + c.nombre + '</h3>' + parBarras(c.intP, c.int, Math.max(c.int || 0, c.intP || 0)) +
+        '<p class="cambio">' + (c.int !== null && c.intP ? dl(c.int, c.intP) + ' vs ' + mesCorto(ant).toLowerCase() : '&nbsp;') + '</p>' +
+        (dts.length ? '<dl class="kv sm">' + dts.map(function (x) { return '<dt>' + x[0] + '</dt><dd>' + x[1] + '</dd>'; }).join('') + '</dl>' : '') + '</div>';
+    }).join('') + '</div>' + parrafos(textoRanking(ctas, 'int', 'intP', 'interacciones', mes, ant)) + '</section>';
+
+  // 4) Desempeño por formato
+  var conFmt = ctas.filter(function (c) { return c.det.formatos && Object.keys(c.det.formatos).length; });
+  var s4 = '<section class="card rep-sec"><h2><span class="num">4</span>Desempeño por formato</h2>' +
+    (conFmt.length ? '<div class="rep-grid fmt">' + conFmt.map(function (c) {
+      var fs = Object.keys(c.det.formatos).sort(function (x, y) { return FMT_ORDEN.indexOf(x) - FMT_ORDEN.indexOf(y); });
+      var mv = Math.max.apply(null, fs.map(function (k) { return c.det.formatos[k].vistas || 0; }).concat([1]));
+      var mi = Math.max.apply(null, fs.map(function (k) { return c.det.formatos[k].interacciones || 0; }).concat([1]));
+      var barras = function (campo, mx, color) {
+        return '<div class="hbars fmtb">' + fs.filter(function (k) { return !(campo === 'interacciones' && k === 'Historias'); }).sort(function (x, y) { return (c.det.formatos[y][campo] || 0) - (c.det.formatos[x][campo] || 0); }).map(function (k) {
+          var v = c.det.formatos[k][campo] || 0;
+          return '<div class="hb"><span>' + esc(k) + ' <small>' + c.det.formatos[k].publicaciones + '</small></span><div class="tr"><div class="fl" style="width:' + (v / mx * 100) + '%;background:' + color + '"></div></div><span class="v">' + fmt(v) + '</span></div>';
+        }).join('') + '</div>';
+      };
+      return '<div class="rep-cta"><h3>' + iconoRed(c.a) + c.nombre + '</h3><div class="fmt2"><div><span class="l">Visualizaciones</span>' + barras('vistas', mv, 'var(--vino)') + '</div>' +
+        '<div><span class="l">Interacciones</span>' + barras('interacciones', mi, 'var(--oro)') + '</div></div></div>';
+    }).join('') + '</div><p class="meta">El número pequeño junto a cada formato es la cantidad de publicaciones.</p>'
+      : '<p class="meta">Este mes no tiene el detalle por formato (se captura cuando las métricas vienen de Meta).</p>') + '</section>';
+
+  // 5) Perfil de la audiencia (Instagram)
+  var edad = {}, sexo = {}, conAud = [];
+  ctas.forEach(function (c) {
+    var au = c.det.audiencia; if (!au) return;
+    conAud.push(c.nombre);
+    Object.keys(au.edad || {}).forEach(function (k) { edad[k] = (edad[k] || 0) + au.edad[k]; });
+    Object.keys(au.sexo || {}).forEach(function (k) { sexo[k] = (sexo[k] || 0) + au.sexo[k]; });
+  });
+  var s5 = '<section class="card rep-sec"><h2><span class="num">5</span>Perfil de la audiencia</h2>' +
+    (conAud.length ? audienciaHtml(edad, sexo) + '<p class="meta">Seguidores de ' + listaY(conAud) + '. Meta solo entrega edad y sexo de Instagram (con 100 seguidores o más).</p>'
+      : '<p class="meta">Meta entrega la edad y el sexo de los seguidores solo de cuentas de Instagram con 100 seguidores o más. Aparecerá aquí cuando esté disponible.</p>') + '</section>';
+
+  // 6) Contenido de mayor desempeño y comportamiento por plataforma
+  var s6 = '<section class="card rep-sec"><h2><span class="num">6</span>Contenido de mayor desempeño</h2>' + vinetas(textoContenido(ctas)) +
+    '<h3 class="rep-h3">Comportamiento por plataforma</h3>' + vinetas(textoPlataformas(ctas, ant)) + '</section>';
+
+  // 7) Análisis del periodo  8) Conclusiones
+  var s7 = '<section class="card rep-sec"><h2><span class="num">7</span>Análisis del periodo</h2>' + vinetas(textoAnalisis(ctas, pag, mes, ant)) + '</section>' +
+    '<section class="card rep-sec"><h2><span class="num">8</span>Conclusiones</h2>' + parrafos([textoConclusion(ctas, pag, mes, ant)]) + '</section>';
+
+  // 9) Mejores publicaciones
+  var conTop = ctas.filter(function (c) { return c.det.mejores && c.det.mejores.length; });
+  var s9 = '<section class="card rep-sec"><h2><span class="num">9</span>Mejores publicaciones</h2>' +
+    (conTop.length ? '<div class="rep-grid tops2">' + conTop.map(function (c) {
+      return '<div><h3 class="rep-h3">' + iconoRed(c.a) + c.nombre + '</h3><div class="tops">' + c.det.mejores.slice(0, 5).map(function (p, i) {
+        return '<a class="tpub" href="' + esc(p.link || '#') + '" target="_blank" rel="noopener"><span class="pos">' + (i + 1) + '</span>' +
+          '<span class="tim">' + (p.img ? '<img alt="" loading="lazy" referrerpolicy="no-referrer" src="' + esc(p.img) + '" onerror="this.remove()">' : '') + ic(p.formato === 'Reels' || p.formato === 'Videos' ? 'play' : 'image') + '</span>' +
+          '<span class="tx"><b>' + esc(p.texto || 'Sin texto') + '</b><small>' + esc(p.formato) + ' · ' + fCorta(p.fecha) + '</small></span>' +
+          '<span class="tn"><b>' + fmt(p.interacciones) + '</b><small>interacciones</small></span>' +
+          '<span class="tn">' + (numOk(p.vistas) ? '<b>' + fmt(p.vistas) + '</b><small>visualizaciones</small>' : '<b>—</b><small>visualizaciones</small>') + '</span></a>';
+      }).join('') + '</div></div>';
+    }).join('') + '</div>' : '<p class="meta">Las mejores publicaciones aparecen cuando las métricas vienen de Meta.</p>') + '</section>';
+
+  $('#view').innerHTML = cab + s1 + s2 + s3 + s4 + s5 + s6 + s7 + s9;
+  bindReporte(d);
+}
+function bindReporte(d) {
+  bindPestanas(d);
+  var sm = $('#repMes'); if (sm) sm.onchange = function () { S.repMes = sm.value; pintarReporte(d); };
+  $$('[data-rpag]').forEach(function (b) { b.onclick = function () { S.repPag = b.dataset.rpag; pintarReporte(d); }; });
+  var pdf = $('#repPdf'); if (pdf) pdf.onclick = function () { window.print(); };
+}
+function parrafos(xs) { xs = xs.filter(Boolean); return xs.length ? '<div class="rep-txt">' + xs.map(function (t) { return '<p>' + t + '</p>'; }).join('') + '</div>' : ''; }
+function vinetas(xs) { xs = xs.filter(Boolean); return xs.length ? '<ul class="rep-ul">' + xs.map(function (t) { return '<li>' + t + '</li>'; }).join('') + '</ul>' : '<p class="meta">Sin datos suficientes este mes.</p>'; }
+
+function audienciaHtml(edad, sexo) {
+  var ks = Object.keys(edad).sort(function (a, b) { return edad[b] - edad[a]; });
+  var tot = ks.reduce(function (s, k) { return s + edad[k]; }, 0) || 1;
+  var mx = Math.max.apply(null, ks.map(function (k) { return edad[k]; }).concat([1]));
+  var h = sexo.M || 0, m = sexo.F || 0, o = sexo.U || 0, ts = h + m + o;
+  var pm = ts ? Math.round(m / ts * 100) : 0, ph = ts ? Math.round(h / ts * 100) : 0;
+  var r = 54, cir = 2 * Math.PI * r;
+  var dona = ts ? '<svg viewBox="0 0 140 140" class="dona" role="img" aria-label="Mujeres ' + pm + '%, hombres ' + ph + '%">' +
+      '<circle cx="70" cy="70" r="' + r + '" fill="none" stroke="var(--oro)" stroke-width="22"/>' +
+      '<circle cx="70" cy="70" r="' + r + '" fill="none" stroke="var(--vino)" stroke-width="22" stroke-dasharray="' + (cir * ph / 100) + ' ' + cir + '" transform="rotate(-90 70 70)"/></svg>' +
+      '<div class="dona-ley"><span><i style="background:var(--vino)"></i>Hombres <b>' + ph + '%</b></span><span><i style="background:var(--oro)"></i>Mujeres <b>' + pm + '%</b></span>' + (o ? '<span class="meta">Sin especificar ' + (100 - ph - pm) + '%</span>' : '') + '</div>' : '<p class="meta">Sin dato de sexo.</p>';
+  return '<div class="aud"><div><span class="l">Edad</span>' + (ks.length ? '<div class="hbars">' + ks.map(function (k) {
+      return '<div class="hb"><span>' + esc(k) + ' años</span><div class="tr"><div class="fl" style="width:' + (edad[k] / mx * 100) + '%;background:var(--jade)"></div></div><span class="v">' + Math.round(edad[k] / tot * 100) + '%</span></div>';
+    }).join('') + '</div>' : '<p class="meta">Sin dato de edad.</p>') + '</div>' +
+    '<div><span class="l">Sexo</span><div class="dona-w">' + dona + '</div></div></div>';
+}
+
+/* ---- Textos del reporte (se arman con las cifras; no requieren IA) ---- */
+function textoCrecimiento(ctas, mes, ant) {
+  var con = ctas.filter(function (c) { return c.crec !== null; }).sort(function (a, b) { return b.crec - a.crec; });
+  var out = con.map(function (c, i) {
+    var n = fmt(Math.abs(c.crec)), p = c.crecP !== null ? Math.abs(c.crecP).toFixed(1) + '%' : '';
+    if (c.crec < 0) return '<b>' + c.nombre + '</b> perdió ' + n + ' seguidores (−' + p + '); conviene revisar la frecuencia y el tipo de contenido.';
+    if (c.crec === 0) return '<b>' + c.nombre + '</b> se mantuvo en ' + fmt(c.segA) + ' seguidores.';
+    if (i === 0 && con.length > 1) return '<b>' + c.nombre + '</b> concentró el mayor crecimiento del periodo, con <b>' + n + ' nuevos seguidores</b> y un incremento de ' + p + ', siendo la cuenta con mayor capacidad para ampliar su comunidad.';
+    return '<b>' + c.nombre + '</b> sumó ' + n + ' nuevos seguidores, un crecimiento de ' + p + '.';
+  });
+  ctas.filter(function (c) { return c.crec === null && c.segA !== null; }).forEach(function (c) {
+    out.push('<b>' + c.nombre + '</b> cerró ' + mesLargo(mes).toLowerCase() + ' con ' + fmt(c.segA) + ' seguidores (no hay dato de ' + mesLargo(ant).toLowerCase() + ' para comparar).');
+  });
+  return out;
+}
+function formatoTop(c, campo) {
+  var f = c.det.formatos; if (!f) return '';
+  var ks = Object.keys(f).filter(function (k) { return (f[k][campo] || 0) > 0; }).sort(function (a, b) { return f[b][campo] - f[a][campo]; });
+  return ks[0] || '';
+}
+function textoRanking(ctas, campo, campoP, nombre, mes, ant) {
+  var con = ctas.filter(function (c) { return c[campo] !== null; }).sort(function (a, b) { return b[campo] - a[campo]; });
+  if (!con.length) return [];
+  var lider = con[0], ft = formatoTop(lider, nombre === 'visualizaciones' ? 'vistas' : 'interacciones');
+  var cambio = lider[campoP] ? pct1(lider[campo], lider[campoP]) : null;
+  var t = 'Durante ' + mesLargo(mes).toLowerCase() + ', <b>' + lider.nombre + '</b> fue la cuenta con más ' + nombre + ', con <b>' + fmt(lider[campo]) + '</b>' +
+    (cambio !== null ? ' (' + (cambio >= 0 ? 'un aumento' : 'una baja') + ' de ' + Math.abs(cambio).toFixed(1) + '% contra ' + mesLargo(ant).toLowerCase() + ')' : '') +
+    (ft ? ', impulsada principalmente por ' + ft.toLowerCase() : '') + '.';
+  if (con.length > 1) {
+    t += ' Le siguieron ' + listaY(con.slice(1).map(function (c) {
+      var ch = c[campoP] ? pct1(c[campo], c[campoP]) : null;
+      return c.nombre + ' con ' + fmt(c[campo]) + (ch !== null ? ' (' + pctTxt(ch) + ')' : '');
+    })) + '.';
+  }
+  return [t];
+}
+function textoContenido(ctas) {
+  var ag = {};
+  ctas.forEach(function (c) {
+    var f = c.det.formatos || {};
+    Object.keys(f).forEach(function (k) { var x = ag[k] || (ag[k] = { vistas: 0, interacciones: 0, publicaciones: 0 }); x.vistas += f[k].vistas || 0; x.interacciones += f[k].interacciones || 0; x.publicaciones += f[k].publicaciones || 0; });
+  });
+  var ks = Object.keys(ag).sort(function (a, b) { return (ag[b].interacciones + ag[b].vistas / 50) - (ag[a].interacciones + ag[a].vistas / 50); }).slice(0, 4);
+  var out = ks.map(function (k, i) {
+    var x = ag[k];
+    return '<b>' + k + ':</b> ' + fmt(x.publicaciones) + (x.publicaciones === 1 ? ' publicación' : ' publicaciones') + ' con ' + fmt(x.vistas) + ' visualizaciones y ' + fmt(x.interacciones) + ' interacciones' +
+      (i === 0 ? '; fue el formato con mejor desempeño del mes.' : '.');
+  });
+  var mejor = null;
+  ctas.forEach(function (c) { (c.det.mejores || []).forEach(function (p) { if (!mejor || p.interacciones > mejor.p.interacciones) mejor = { p: p, c: c }; }); });
+  if (mejor) out.push('<b>Publicación más destacada:</b> “' + esc(mejor.p.texto || 'sin texto') + '” (' + mejor.c.nombre + ', ' + fCorta(mejor.p.fecha) + ') con ' + fmt(mejor.p.interacciones) + ' interacciones' + (numOk(mejor.p.vistas) ? ' y ' + fmt(mejor.p.vistas) + ' visualizaciones' : '') + '.');
+  return out;
+}
+function textoPlataformas(ctas, ant) {
+  return ctas.filter(function (c) { return c.f; }).map(function (c) {
+    var f = c.f, pubs = Number(f.publicaciones) || 0, ft = formatoTop(c, 'interacciones');
+    var ch = c.intP ? pct1(c.int, c.intP) : null;
+    return '<b>' + c.nombre + ':</b> ' + fmt(pubs) + (pubs === 1 ? ' publicación, ' : ' publicaciones, ') + (c.vis !== null ? fmt(c.vis) + ' visualizaciones y ' : '') + fmt(c.int) + ' interacciones' +
+      (pubs ? ' (' + fmt(c.int / pubs) + ' por publicación)' : '') + (ch !== null ? '; ' + (ch >= 0 ? 'subió' : 'bajó') + ' ' + Math.abs(ch).toFixed(1) + '% contra ' + mesCorto(ant).toLowerCase() : '') +
+      (ft ? '. Su formato más fuerte fue ' + ft.toLowerCase() + '.' : '.');
+  });
+}
+function textoAnalisis(ctas, pag, mes, ant) {
+  var out = [];
+  var seg = ctas.filter(function (c) { return c.crec !== null; }).sort(function (a, b) { return (b.crecP || 0) - (a.crecP || 0); });
+  if (seg.length) out.push('<b>Seguidores:</b> ' + listaY(seg.map(function (c) { return c.nombre + ' ' + pctTxt(c.crecP) + ' (' + (c.crec >= 0 ? '+' : '') + fmt(c.crec) + ')'; })) + '.');
+  var vis = ctas.filter(function (c) { return c.vis !== null; }).sort(function (a, b) { return b.vis - a.vis; });
+  if (vis.length) out.push('<b>Visualizaciones:</b> ' + listaY(vis.map(function (c) { return c.nombre + ' ' + fmt(c.vis); })) + '.');
+  var tI = ctas.reduce(function (s, c) { return s + (c.int || 0); }, 0), tIP = ctas.reduce(function (s, c) { return s + (c.intP || 0); }, 0);
+  out.push('<b>Interacciones:</b> ' + fmt(tI) + ' en total' + (tIP ? ' (' + pctTxt(pct1(tI, tIP)) + ' contra ' + mesLargo(ant).toLowerCase() + ')' : '') + '.');
+  if (pag === 'ambas') {
+    var pg = function (p) { return ctas.filter(function (c) { return c.a.pagina === p; }).reduce(function (s, c) { return s + (c.int || 0); }, 0); };
+    var a = pg('Delegación'), b = pg('Delegado');
+    if (a || b) out.push('<b>Delegación contra Delegado:</b> la página de la Delegación generó ' + fmt(a) + ' interacciones y la del Delegado ' + fmt(b) + (a && b ? '; ' + (a >= b ? 'la Delegación' : 'el Delegado') + ' concentró el ' + Math.round(Math.max(a, b) / (a + b) * 100) + '% del total.' : '.'));
+  }
+  return out;
+}
+function textoConclusion(ctas, pag, mes, ant) {
+  var con = ctas.filter(function (c) { return c.f; });
+  var tI = con.reduce(function (s, c) { return s + (c.int || 0); }, 0), tIP = con.reduce(function (s, c) { return s + (c.intP || 0); }, 0);
+  var tV = con.reduce(function (s, c) { return s + (c.vis || 0); }, 0);
+  var lInt = con.slice().sort(function (a, b) { return b.int - a.int; })[0];
+  var lVis = con.filter(function (c) { return c.vis !== null; }).sort(function (a, b) { return b.vis - a.vis; })[0];
+  var lSeg = con.filter(function (c) { return c.crec !== null; }).sort(function (a, b) { return (b.crecP || 0) - (a.crecP || 0); })[0];
+  var ag = {};
+  con.forEach(function (c) { var f = c.det.formatos || {}; Object.keys(f).forEach(function (k) { ag[k] = (ag[k] || 0) + (f[k].interacciones || 0) + (f[k].vistas || 0) / 50; }); });
+  var fTop = Object.keys(ag).sort(function (a, b) { return ag[b] - ag[a]; })[0];
+  var bajan = con.filter(function (c) { return c.intP && c.int < c.intP; }).map(function (c) { return c.nombre; });
+  var quien = pag === 'ambas' ? 'las cuentas de la Delegación y del Delegado' : pag === 'del' ? 'las cuentas de la Delegación' : 'las cuentas del Delegado';
+  var t = 'En ' + mesLargo(mes).toLowerCase() + ', ' + quien + ' sumaron <b>' + fmt(tI) + ' interacciones</b>' + (tIP ? ' (' + pctTxt(pct1(tI, tIP)) + ' contra ' + mesLargo(ant).toLowerCase() + ')' : '') +
+    (tV ? ' y <b>' + fmt(tV) + ' visualizaciones</b>' : '') + '. ';
+  if (lInt) t += lInt.nombre + ' fue el principal canal de participación';
+  if (lVis && lVis !== lInt) t += ', mientras que ' + lVis.nombre + ' destacó por la exposición del contenido';
+  if (lSeg && lSeg.crec > 0) t += (lInt ? '; ' : '') + lSeg.nombre + ' tuvo el mayor crecimiento de comunidad (' + pctTxt(lSeg.crecP) + ')';
+  t += '. ';
+  if (fTop) t += 'Los ' + fTop.toLowerCase() + ' fueron el formato con mejor respuesta, por lo que conviene mantener su frecuencia y aprovecharlos para los temas prioritarios. ';
+  if (bajan.length) t += 'Conviene reforzar ' + listaY(bajan) + ', que ' + (bajan.length === 1 ? 'tuvo' : 'tuvieron') + ' menos interacciones que el mes anterior.';
+  else if (tIP) t += 'Todas las cuentas mantuvieron o mejoraron su nivel de interacción respecto al mes anterior.';
+  return t;
 }
 
 /* =========================================================
@@ -1858,6 +2193,8 @@ function mConfig(seq) {
     pintarConfig(c);
   });
 }
+var CAMPOS_MAN = [['reacciones', 'Reacciones / me gusta'], ['comentarios', 'Comentarios'], ['compartidos', 'Compartidos'], ['publicaciones', 'Publicaciones'],
+  ['seguidores', 'Seguidores (total al cierre)'], ['vistas', 'Visualizaciones'], ['alcance', 'Alcance / espectadores'], ['visitasPerfil', 'Visitas al perfil o página']];
 function pintarConfig(c) {
   var mesActual = today().slice(0, 7);
   var nombreCuenta = function (k) { var a = CUENTAS.filter(function (x) { return x.k === k; })[0]; return a.red + ' ' + a.pagina; };
@@ -1898,8 +2235,8 @@ function pintarConfig(c) {
         '<form class="form" id="fMan" novalidate>' +
           '<div><label class="l" for="manMes">Mes</label><input type="month" id="manMes" value="' + mesActual + '"></div>' +
           '<div><label class="l" for="manCta">Cuenta</label><select id="manCta">' + CUENTAS.map(function (a) { return '<option value="' + a.k + '">' + nombreCuenta(a.k) + '</option>'; }).join('') + '</select></div>' +
-          ['reacciones', 'comentarios', 'compartidos', 'publicaciones', 'seguidores'].map(function (f) {
-            return '<div><label class="l" for="man-' + f + '">' + f.charAt(0).toUpperCase() + f.slice(1) + (f === 'seguidores' ? ' (total al cierre)' : '') + '</label><input type="number" min="0" inputmode="numeric" id="man-' + f + '"></div>';
+          CAMPOS_MAN.map(function (f) {
+            return '<div><label class="l" for="man-' + f[0] + '">' + f[1] + '</label><input type="number" min="0" inputmode="numeric" id="man-' + f[0] + '"></div>';
           }).join('') +
           '<div class="full"><button class="btn" type="submit">' + ic('save') + 'Guardar cifras</button><p class="status" id="manMsg"></p></div></form></div>' +
 
@@ -1970,10 +2307,10 @@ function pintarConfig(c) {
   $('#fMan').onsubmit = function (e) {
     e.preventDefault();
     var d = { mes: $('#manMes').value, cuenta: $('#manCta').value };
-    ['reacciones', 'comentarios', 'compartidos', 'publicaciones', 'seguidores'].forEach(function (f) { d[f] = $('#man-' + f).value; });
+    CAMPOS_MAN.forEach(function (f) { d[f[0]] = $('#man-' + f[0]).value; });
     call('guardarMetricaManual', d).then(function () {
       $('#manMsg').textContent = 'Guardado: ' + nombreCuenta(d.cuenta) + ' · ' + mesLargo(d.mes) + '.'; toast('Cifras guardadas');
-      ['reacciones', 'comentarios', 'compartidos', 'publicaciones', 'seguidores'].forEach(function (f) { $('#man-' + f).value = ''; });
+      CAMPOS_MAN.forEach(function (f) { $('#man-' + f[0]).value = ''; });
     }).catch(function (err) { $('#manMsg').textContent = err.message; });
   };
   $('#sCopy').onclick = function () { copiar(c.appUrl || linkApp(), null, null); };
