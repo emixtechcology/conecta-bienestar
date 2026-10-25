@@ -15,6 +15,7 @@ var IC = {
   gear:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
   play:'<path d="M8 5.5v13l11-6.5z" fill="currentColor" stroke="none"/>',
   download:'<path d="M12 4v11M7 10l5 5 5-5M4 20h16"/>',
+  layers:'<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>',
   folder:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
   search:'<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>',
   image:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5L5 20"/>',
@@ -340,8 +341,51 @@ function abrirPreview(id, mime, titulo, extra) {
     '<div class="actions">' + botonesDrive(id) + (extra || '') + '</div>');
 }
 function bindPreviews() {
-  $$('[data-prev]').forEach(function (b) { b.onclick = function () { abrirPreview(b.dataset.prev, b.dataset.mime); }; });
+  $$('[data-prev]').forEach(function (b) { b.onclick = function () { abrirPreview(b.dataset.prev, b.dataset.mime, b.dataset.tit || ''); }; });
 }
+/** Lista de archivos de una publicación (carrusel); compatible con las de un solo archivo. */
+function archivosDe(it) { return it && it.archivos && it.archivos.length ? it.archivos : it && it.archivo ? [it.archivo] : []; }
+/** Tira de miniaturas numeradas para carruseles. Cada una abre la vista previa con Descargar y Abrir en Drive. */
+function tiraArchivos(it, sm, quitar) {
+  var l = archivosDe(it);
+  if (l.length < 2) return '';
+  return '<div class="tira' + (sm ? ' sm' : '') + '">' + l.map(function (a, i) {
+    var img = /^image\//.test(a.mime || '');
+    return '<span class="tpzw"><button type="button" class="tpz" data-prev="' + esc(a.id) + '" data-mime="' + esc(a.mime || '') + '" data-tit="' + esc((i + 1) + ' de ' + l.length + ' · ' + (a.nombre || '')) + '" aria-label="Ver archivo ' + (i + 1) + '">' +
+      (img ? '<img alt="" loading="lazy" src="' + driveMini(a.id, 300) + '">' : '<span class="play">' + ic('play') + '</span>') + '<span class="fpz-n">' + (i + 1) + '</span></button>' +
+      (quitar ? '<button type="button" class="tpz-x" data-qarch="' + esc(a.id) + '" aria-label="Quitar ' + esc(a.nombre || 'archivo') + '" title="Quitar este archivo">' + ic('trash') + '</button>' : '') + '</span>';
+  }).join('') + '</div>';
+}
+/**
+ * Abre el archivo y ofrece quitarlo de la publicación (va a la papelera de Drive).
+ * Pide confirmación tocando dos veces. alTerminar recibe la publicación actualizada.
+ */
+function quitarDePublicacion(it, archivoId, alTerminar) {
+  var l = archivosDe(it), i = -1;
+  l.forEach(function (a, k) { if (a.id === archivoId) i = k; });
+  if (i < 0) return;
+  var a = l[i];
+  abrirPreview(a.id, a.mime, (l.length > 1 ? (i + 1) + ' de ' + l.length + ' · ' : '') + (a.nombre || 'Archivo'),
+    '<button class="btn ghost danger" id="qaSi">' + ic('trash') + 'Quitar de la publicación</button>');
+  $('#mBody').insertAdjacentHTML('beforeend', '<p class="meta">Se quita solo este archivo; la publicación se queda' + (l.length > 1 ? ' con los demás' : ' sin archivo y puedes subir otro con Editar') + '. El archivo va a la papelera de Drive (se puede recuperar ahí 30 días).</p>');
+  var b = $('#qaSi');
+  b.onclick = function () {
+    if (b.dataset.ok !== '1') { b.dataset.ok = '1'; b.innerHTML = ic('trash') + '¿Seguro? Toca otra vez'; return; }
+    b.disabled = true;
+    call('quitarArchivo', { id: it.id, archivoId: a.id }).then(function (c) { cerrarModal(); toast('Archivo quitado'); alTerminar(c); })
+      .catch(function (e) { toast(e.message); b.disabled = false; });
+  };
+}
+/** Botones de Drive: carpeta completa si es carrusel, o el archivo si es uno. */
+function botonesDe(it, sm) {
+  var l = archivosDe(it);
+  if (!l.length) return '';
+  if (l.length > 1) {
+    return it.carpetaId ? '<a class="btn ' + (sm ? 'sm ' : '') + 'ghost" target="_blank" rel="noopener" href="' + driveCarpeta(it.carpetaId) + '">' + ic('folder') + 'Abrir carpeta en Drive</a>' : '';
+  }
+  return botonesDrive(l[0].id, sm);
+}
+function cuentaArchivos(it) { var n = archivosDe(it).length; return n > 1 ? '<span class="tag">' + ic('layers', 'i ic-sm') + n + ' archivos</span>' : ''; }
 
 /* =========================================================
    Acceso
@@ -444,6 +488,7 @@ function bindGo() {
   $$('#view [data-go]').forEach(function (b) {
     b.onclick = function () { if (b.dataset.go === 'contenidos') S.editItem = null; go(b.dataset.go); };
   });
+  bindPreviews();
 }
 
 /* =========================================================
@@ -775,13 +820,14 @@ function pintarParrilla(lista) {
       if (u.rol !== 'aprobador' && sel.estado === 'Programado') acts.push('<button class="btn sm ghost" id="bPub">' + ic('check') + 'Marcar publicado</button>');
       if (u.rol !== 'aprobador' && (sel.estado === 'Programado' || sel.estado === 'Publicado') && sel.fecha <= hoy) acts.push('<button class="btn sm dark" id="bLinks">' + ic('link') + 'Capturar links</button>');
       if (sel.estado === 'En revisión' && u.rol !== 'capturista') acts.push('<button class="btn sm dark" data-go="aprobaciones">' + ic('shield') + 'Ir a aprobar</button>');
-      if (sel.archivo) acts.push(botonesDrive(sel.archivo.id, true));
+      if (archivosDe(sel).length) acts.push(botonesDe(sel, true));
+      if (puedeEditar(sel) && archivosDe(sel).length === 1) acts.push('<button class="btn sm ghost danger" id="bQuitar">' + ic('trash') + 'Quitar archivo</button>');
       if (u.rol === 'capturista' && !puedeEditar(sel)) acts.push('<span class="meta">Solo puedes editar lo que tú subiste.</span>');
     }
     detalle = '<div class="detail">' + mediaHtml(sel.archivo, sel.tipo) +
       '<div class="info"><div>' + st(sel.estado) + '</div><h2>' + esc(sel.tema) + '</h2>' +
       '<dl class="kv"><dt>Programa</dt><dd>' + esc(sel.programa || 'Sin programa') + '</dd><dt>Fecha</dt><dd>' + fLarga(sel.fecha) + ' · ' + esc(sel.hora) + '</dd><dt>Dónde</dt><dd>' + nets(sel) + '</dd><dt>Subió</dt><dd>' + esc(sel.autorNombre) + '</dd><dt>Revisión</dt><dd>' + (sel.revisadoPor ? esc(revision(sel)) : sel.estado === 'En revisión' ? 'Esperando a un aprobador' : '—') + '</dd>' +
-      (sel.archivo ? '<dt>Archivo</dt><dd><a target="_blank" rel="noopener" href="https://drive.google.com/file/d/' + encodeURIComponent(sel.archivo.id) + '/view">' + esc(sel.archivo.nombre || 'Abrir en Drive') + '</a></dd>' : '') + '</dl>' +
+      (archivosDe(sel).length > 1 ? '<dt>Archivos</dt><dd>' + archivosDe(sel).length + ' (carrusel). Toca cada uno para verlo o descargarlo.</dd>' : sel.archivo ? '<dt>Archivo</dt><dd><a target="_blank" rel="noopener" href="https://drive.google.com/file/d/' + encodeURIComponent(sel.archivo.id) + '/view">' + esc(sel.archivo.nombre || 'Abrir en Drive') + '</a></dd>' : '') + '</dl>' + tiraArchivos(sel, false, puedeEditar(sel)) +
       (sel.estado === 'Rechazado' && sel.motivo ? '<div class="note"><b>Motivo del rechazo:</b> ' + esc(sel.motivo) + '</div>' : '') +
       (sel.copy ? '<div><span class="l">Texto de la publicación</span><div class="copytext">' + esc(sel.copy) + '</div></div>' : '') +
       '<div class="actions">' + acts.join('') + '</div></div></div>';
@@ -825,6 +871,13 @@ function pintarParrilla(lista) {
     call('marcarPublicado', { id: sel.id }).then(function () { toast('Marcado como publicado'); go('parrilla'); }).catch(function (e) { toast(e.message); });
   });
   on('bLinks', function () { S.linkSel = sel.id; go('links'); });
+  var trasQuitar = function (c) {
+    lista.forEach(function (x, k) { if (x.id === c.id) lista[k] = c; });
+    S.items[c.id] = c;
+    pintarParrilla(lista);
+  };
+  on('bQuitar', function () { quitarDePublicacion(sel, archivosDe(sel)[0].id, trasQuitar); });
+  $$('[data-qarch]').forEach(function (b) { b.onclick = function () { quitarDePublicacion(sel, b.dataset.qarch, trasQuitar); }; });
 }
 
 /* =========================================================
@@ -1138,12 +1191,29 @@ function formAlbum(a, pre) {
 function pintarAlbum(d) {
   var a = d.album, u = S.user;
   var puede = u.rol === 'admin' || a.creadoPor === u.id;
+  var borrable = function (m) { return u.rol === 'admin' || m.subidoPor === u.id; };
+  var hayBorrables = d.archivos.some(borrable);
+  if (!S.matSel || S.matSel.album !== a.id) S.matSel = { album: a.id, activo: false, ids: {} };
+  var sel = S.matSel, nSel = Object.keys(sel.ids).length;
   var tiles = d.archivos.map(function (m) {
     var img = /^image\//.test(m.mime);
-    return '<figure class="tile"><button class="tile-btn" data-mprev="' + m.id + '" aria-label="Ver ' + esc(m.nombre) + '">' +
-      '<img alt="" loading="lazy" src="' + driveMini(m.archivoId, 500) + '" onerror="this.remove()">' + (img ? '' : '<span class="play">' + ic('play') + '</span>') + '</button>' +
-      '<figcaption><span title="' + esc(m.nombre) + '">' + esc(m.nombre) + '</span><a href="' + driveBajar(m.archivoId) + '" target="_blank" rel="noopener" aria-label="Descargar ' + esc(m.nombre) + '">' + ic('download') + '</a></figcaption></figure>';
+    var marcado = !!sel.ids[m.id];
+    var elegible = sel.activo && borrable(m);
+    return '<figure class="tile' + (marcado ? ' marcado' : '') + (sel.activo && !borrable(m) ? ' bloqueado' : '') + '">' +
+      '<button class="tile-btn" ' + (elegible ? 'data-msel="' + m.id + '" aria-pressed="' + marcado + '"' : sel.activo ? 'disabled' : 'data-mprev="' + m.id + '"') + ' aria-label="' + (elegible ? 'Seleccionar ' : 'Ver ') + esc(m.nombre) + '">' +
+      '<img alt="" loading="lazy" src="' + driveMini(m.archivoId, 500) + '" onerror="this.remove()">' + (img ? '' : '<span class="play">' + ic('play') + '</span>') +
+      (elegible ? '<span class="tick">' + (marcado ? ic('check') : '') + '</span>' : '') + '</button>' +
+      '<figcaption><span title="' + esc(m.nombre) + '">' + esc(m.nombre) + '</span>' +
+      (sel.activo ? '' : '<a href="' + driveBajar(m.archivoId) + '" target="_blank" rel="noopener" aria-label="Descargar ' + esc(m.nombre) + '">' + ic('download') + '</a>' +
+        (borrable(m) ? '<button type="button" class="tdel" data-mdel="' + m.id + '" aria-label="Eliminar ' + esc(m.nombre) + '" title="Eliminar">' + ic('trash') + '</button>' : '')) +
+      '</figcaption></figure>';
   }).join('');
+  var barraSel = !d.archivos.length || !hayBorrables ? '' : sel.activo
+    ? '<div class="selbar"><b>' + (nSel ? nSel + (nSel === 1 ? ' seleccionado' : ' seleccionados') : 'Toca las fotos o videos que quieres eliminar') + '</b>' +
+        '<button class="btn sm ghost" id="selTodo">Elegir todo</button>' +
+        '<button class="btn sm ghost danger" id="selBorrar"' + (nSel ? '' : ' disabled') + '>' + ic('trash') + (sel.confirmar ? '¿Seguro? Toca otra vez' : 'Eliminar') + '</button>' +
+        '<button class="btn sm ghost" id="selSalir">Cancelar</button></div>'
+    : '<div class="selbar quieta"><span class="meta">¿Subiste algo por error? Toca ' + ic('trash', 'i ic-sm') + ' en el archivo, o</span><button class="btn sm ghost" id="selIniciar">' + ic('check') + 'Seleccionar varios</button></div>';
   var borrar = S.matBorrar === a.id
     ? '<div class="inline-confirm">¿Eliminar el álbum y sus ' + a.total + ' archivos? Se mandan a la papelera de Drive. <button class="btn sm" id="alBorrarSi">Sí, eliminar</button><button class="btn sm ghost" id="alBorrarNo">Cancelar</button></div>' : '';
 
@@ -1157,11 +1227,11 @@ function pintarAlbum(d) {
     '<div class="card"><label class="drop" for="mFiles" id="mDrop"><span class="round">' + ic('upload') + '</span><b style="color:var(--ink)">Toca o arrastra aquí las fotos y videos</b>' +
       '<span>Puedes elegir muchos a la vez. Hasta 1 GB cada uno. Se guardan en la carpeta del álbum en Drive.</span><input type="file" id="mFiles" accept="video/*,image/*" multiple></label>' +
       '<div class="upq" id="mCola" hidden></div></div>' +
-    (d.archivos.length ? '<div class="tiles">' + tiles + '</div>'
+    barraSel + (d.archivos.length ? '<div class="tiles">' + tiles + '</div>'
       : '<p class="meta" style="text-align:center">Todavía no hay archivos en este álbum.</p>') +
     (a.carpetaId && d.archivos.length ? '<p class="meta" style="text-align:center">Para descargar todo de una vez: <b>Abrir carpeta en Drive</b> y ahí <b>Descargar</b> (Drive lo entrega en un .zip).</p>' : '');
 
-  $('#alVolver').onclick = function () { S.albumSel = null; S.matBorrar = null; S.matProg = a.programa || ''; S.matQ = ''; go('material'); };
+  $('#alVolver').onclick = function () { S.albumSel = null; S.matBorrar = null; S.matSel = null; S.matProg = a.programa || ''; S.matQ = ''; go('material'); };
   var on = function (id, fn) { var x = $('#' + id); if (x) x.onclick = fn; };
   on('alEditar', function () { formAlbum(a); });
   on('alBorrar', function () { S.matBorrar = a.id; pintarAlbum(d); });
@@ -1170,6 +1240,40 @@ function pintarAlbum(d) {
     this.disabled = true;
     call('eliminarAlbum', { id: a.id }).then(function () { S.albumSel = null; S.matBorrar = null; S.matProg = a.programa || ''; toast('Álbum eliminado'); go('material'); })
       .catch(function (e) { toast(e.message); });
+  });
+  var quitarDeLista = function (ids) {
+    d.archivos = d.archivos.filter(function (x) { return !ids[x.id]; });
+    var fotos = d.archivos.filter(function (x) { return /^image\//.test(x.mime); }).length;
+    a.total = d.archivos.length; a.fotos = fotos; a.videos = a.total - fotos;
+    a.tamano = d.archivos.reduce(function (t, x) { return t + (Number(x.tamano) || 0); }, 0);
+    S.matSel = null; pintarAlbum(d);
+  };
+  $$('[data-mdel]').forEach(function (b) {
+    b.onclick = function () {
+      if (b.dataset.ok !== '1') {
+        $$('[data-mdel]').forEach(function (o) { o.dataset.ok = ''; o.classList.remove('seguro'); });
+        b.dataset.ok = '1'; b.classList.add('seguro'); b.setAttribute('aria-label', 'Toca otra vez para eliminar'); b.title = 'Toca otra vez para eliminar';
+        toast('Toca otra vez el bote para eliminarlo');
+        return;
+      }
+      b.disabled = true;
+      var id = b.dataset.mdel;
+      call('eliminarMaterial', { id: id }).then(function () { toast('Archivo eliminado'); var o = {}; o[id] = 1; quitarDeLista(o); })
+        .catch(function (e) { toast(e.message); b.disabled = false; });
+    };
+  });
+  on('selIniciar', function () { sel.activo = true; sel.ids = {}; sel.confirmar = false; pintarAlbum(d); });
+  on('selSalir', function () { sel.activo = false; sel.ids = {}; sel.confirmar = false; pintarAlbum(d); });
+  on('selTodo', function () { d.archivos.forEach(function (m) { if (borrable(m)) sel.ids[m.id] = 1; }); sel.confirmar = false; pintarAlbum(d); });
+  $$('[data-msel]').forEach(function (b) {
+    b.onclick = function () { var id = b.dataset.msel; if (sel.ids[id]) delete sel.ids[id]; else sel.ids[id] = 1; sel.confirmar = false; pintarAlbum(d); };
+  });
+  on('selBorrar', function () {
+    if (!sel.confirmar) { sel.confirmar = true; pintarAlbum(d); return; }
+    this.disabled = true;
+    var ids = Object.keys(sel.ids);
+    call('eliminarMaterial', { ids: ids }).then(function (r) { toast(r.eliminados === 1 ? 'Archivo eliminado' : r.eliminados + ' archivos eliminados'); quitarDeLista(sel.ids); })
+      .catch(function (e) { toast(e.message); sel.confirmar = false; pintarAlbum(d); });
   });
   $$('[data-mprev]').forEach(function (b) {
     b.onclick = function () {
@@ -1181,7 +1285,7 @@ function pintarAlbum(d) {
       if (del) del.onclick = function () {
         if (del.dataset.ok !== '1') { del.dataset.ok = '1'; del.innerHTML = ic('trash') + '¿Seguro? Toca otra vez'; return; }
         del.disabled = true;
-        call('eliminarMaterial', { id: m.id }).then(function () { cerrarModal(); toast('Archivo eliminado'); go('material'); })
+        call('eliminarMaterial', { id: m.id }).then(function () { cerrarModal(); toast('Archivo eliminado'); var o = {}; o[m.id] = 1; quitarDeLista(o); })
           .catch(function (e) { toast(e.message); del.disabled = false; });
       };
     };
@@ -1245,8 +1349,9 @@ function aBase64(blob) {
   });
 }
 /** Sube un archivo a Drive en partes; informa el avance con onAvance(0..1). */
-function subirArchivo(file, onAvance, albumId, programa) {
-  return call('iniciarSubida', { nombre: file.name, mime: file.type, tamano: file.size, albumId: albumId || '', programa: programa || '' }).then(function (r) {
+function subirArchivo(file, onAvance, albumId, programa, lote) {
+  return call('iniciarSubida', { nombre: file.name, mime: file.type, tamano: file.size, albumId: albumId || '', programa: programa || '', lote: lote || '' }).then(function (r) {
+    var carpetaLote = r.carpetaId || '';
     var inicio = 0;
     function siguiente(intentos) {
       var pedazo = file.slice(inicio, inicio + r.parte);
@@ -1254,7 +1359,7 @@ function subirArchivo(file, onAvance, albumId, programa) {
         return call('subirParte', { subidaId: r.subidaId, datos: b64, inicio: inicio });
       }).then(function (res) {
         inicio += pedazo.size; onAvance(inicio / file.size);
-        if (res.listo) return res.archivo;
+        if (res.listo) return { archivo: res.archivo, carpetaId: carpetaLote };
         return siguiente(0);
       }, function (err) {
         if (intentos < 2) return new Promise(function (ok) { setTimeout(ok, 1500); }).then(function () { return siguiente(intentos + 1); });
@@ -1285,10 +1390,9 @@ function mContenidos() {
         '<div class="full"><span class="l">¿Dónde se va a publicar?</span>' + destToggles(dest, 'f') + '</div>' +
         '<div class="full"><label class="l" for="f-copy">Texto de la publicación</label><textarea id="f-copy" placeholder="Texto que acompaña al video o imagen">' + esc(it ? it.copy : '') + '</textarea></div>' +
       '</div></div>' +
-      '<div class="card"><h2>Video o imagen</h2>' +
-        (it && it.archivo ? '<p class="meta">Archivo actual: <a target="_blank" rel="noopener" href="https://drive.google.com/file/d/' + encodeURIComponent(it.archivo.id) + '/view">' + esc(it.archivo.nombre) + '</a>. Elige otro solo si quieres reemplazarlo.</p>' : '') +
-        '<label class="drop" for="f-file" id="drop"><span class="round">' + ic('upload') + '</span><b style="color:var(--ink)">Toca o arrastra el archivo aquí</b><span>Video o imagen de hasta 1 GB. Se guarda en Drive en Publicaciones / programa / mes.</span><input type="file" id="f-file" accept="video/*,image/*"></label>' +
-        '<div class="preview" id="f-prev"></div>' +
+      '<div class="card"><div class="card-h"><h2>Videos o imágenes</h2><span class="tag" id="f-cnt"></span></div>' +
+        '<label class="drop" for="f-file" id="drop"><span class="round">' + ic('upload') + '</span><b style="color:var(--ink)">Toca o arrastra los archivos aquí</b><span>Puedes elegir varios para un carrusel (hasta 20). Hasta 1 GB cada uno. Se guardan en Drive en Publicaciones / programa / mes.</span><input type="file" id="f-file" accept="video/*,image/*" multiple></label>' +
+        '<div class="fgrid" id="f-prev"></div>' +
         '<div id="f-bar" hidden><div class="bar"><i id="f-bari"></i></div><p class="meta" id="f-bart">Subiendo…</p></div>' +
         '<p class="status err" id="f-status" aria-live="polite"></p>' +
         '<div class="actions"><button class="btn" type="submit" id="f-send">' + ic('send') + (it ? 'Guardar y enviar a revisión' : 'Enviar a revisión') + '</button>' +
@@ -1296,32 +1400,50 @@ function mContenidos() {
       '</div>' +
     '</form>';
 
-  S.file = null;
+  // Lista de archivos de la publicación: los que ya estaban (edición) y los nuevos por subir.
+  var piezas = (it ? (it.archivos || []) : []).map(function (a) { return { previo: a }; });
   var fi = $('#f-file'), drop = $('#drop');
-  function elegir(file) {
-    var pv = $('#f-prev'); pv.innerHTML = '';
-    if (!file) return;
-    if (!/^(video|image)\//.test(file.type)) { $('#f-status').textContent = 'Solo se pueden subir videos o imágenes.'; return; }
-    if (file.size > 1024 * 1024 * 1024) { $('#f-status').textContent = 'El archivo pesa más de 1 GB.'; return; }
-    $('#f-status').textContent = '';
-    S.file = file;
-    var url = URL.createObjectURL(file);
-    var el = document.createElement(file.type.indexOf('video') === 0 ? 'video' : 'img');
-    el.src = url; if (el.tagName === 'VIDEO') { el.controls = true; el.playsInline = true; } else el.alt = 'Vista previa';
-    pv.appendChild(el);
-    var cap = document.createElement('p'); cap.className = 'meta'; cap.textContent = file.name + ' · ' + (file.size / 1048576).toFixed(1) + ' MB'; pv.appendChild(cap);
+  function pintarPiezas() {
+    var pv = $('#f-prev');
+    $('#f-cnt').textContent = piezas.length ? piezas.length + (piezas.length === 1 ? ' archivo' : ' archivos') : '';
+    $('#f-cnt').hidden = !piezas.length;
+    pv.innerHTML = piezas.map(function (p, i) {
+      var esImg = p.file ? /^image\//.test(p.file.type) : /^image\//.test(p.previo.mime || '');
+      var src = p.file ? (p.url || (p.url = URL.createObjectURL(p.file))) : driveMini(p.previo.id, 400);
+      var nombre = p.file ? p.file.name : p.previo.nombre;
+      var media = esImg || !p.file ? '<img alt="" src="' + src + '" onerror="this.remove()">' : '<video src="' + src + '" muted playsinline preload="metadata"></video>';
+      return '<figure class="fpz">' + '<div class="fpz-m">' + media + (esImg ? '' : '<span class="play">' + ic('play') + '</span>') + '<span class="fpz-n">' + (i + 1) + '</span>' + (p.file ? '' : '<span class="tag fpz-t">Ya subido</span>') + '</div>' +
+        '<figcaption><span title="' + esc(nombre) + '">' + esc(nombre) + '</span>' +
+        '<button type="button" class="iconbtn" data-mover="' + i + '" aria-label="Mover antes"' + (i === 0 ? ' disabled' : '') + '>' + ic('left') + '</button>' +
+        '<button type="button" class="iconbtn" data-quitar="' + i + '" aria-label="Quitar ' + esc(nombre) + '">' + ic('x') + '</button></figcaption></figure>';
+    }).join('');
+    $$('[data-quitar]').forEach(function (b) { b.onclick = function () { piezas.splice(Number(b.dataset.quitar), 1); pintarPiezas(); }; });
+    $$('[data-mover]').forEach(function (b) {
+      b.onclick = function () { var i = Number(b.dataset.mover); if (i < 1) return; var x = piezas[i]; piezas[i] = piezas[i - 1]; piezas[i - 1] = x; pintarPiezas(); };
+    });
   }
-  fi.onchange = function () { elegir(fi.files[0]); };
+  function agregar(files) {
+    var msg = $('#f-status'); msg.textContent = '';
+    Array.prototype.forEach.call(files || [], function (f) {
+      if (!/^(video|image)\//.test(f.type)) { msg.textContent = f.name + ': solo se pueden subir videos o imágenes.'; return; }
+      if (f.size > 1024 * 1024 * 1024) { msg.textContent = f.name + ' pesa más de 1 GB.'; return; }
+      if (piezas.length >= 20) { msg.textContent = 'Máximo 20 archivos por publicación.'; return; }
+      piezas.push({ file: f });
+    });
+    if (piezas.length > 1 && $('#f-tipo').value === 'Video' && formatos().indexOf('Carrusel') > -1) $('#f-tipo').value = 'Carrusel';
+    pintarPiezas();
+  }
+  pintarPiezas();
+  fi.onchange = function () { agregar(fi.files); fi.value = ''; };
   drop.addEventListener('dragover', function (e) { e.preventDefault(); drop.classList.add('over'); });
   drop.addEventListener('dragleave', function () { drop.classList.remove('over'); });
-  drop.addEventListener('drop', function (e) { e.preventDefault(); drop.classList.remove('over'); elegir(e.dataTransfer.files[0]); });
+  drop.addEventListener('drop', function (e) { e.preventDefault(); drop.classList.remove('over'); agregar(e.dataTransfer.files); });
 
   function enviar(borrador) {
     var msg = $('#f-status');
     var datos = {
       id: it ? it.id : null, tema: $('#f-tema').value.trim(), tipo: $('#f-tipo').value, programa: $('#f-prog').value,
       fecha: $('#f-fecha').value, hora: $('#f-hora').value, dest: leerDest('f'), copy: $('#f-copy').value, borrador: borrador,
-      archivo: it && it.archivo ? it.archivo : null,
       eventoId: pre ? pre.id : ''
     };
     if (!datos.tema) { msg.textContent = 'Escribe el tema de la publicación.'; $('#f-tema').focus(); return; }
@@ -1331,20 +1453,37 @@ function mContenidos() {
     if (!CUENTAS.some(function (a) { return datos.dest[a.k]; })) { msg.textContent = 'Marca al menos una página y red.'; return; }
     msg.textContent = '';
     var botones = [$('#f-send'), $('#f-draft')]; botones.forEach(function (b) { b.disabled = true; });
-    var paso = Promise.resolve();
-    if (S.file) {
-      $('#f-bar').hidden = false;
-      paso = subirArchivo(S.file, function (p) {
-        $('#f-bari').style.width = Math.round(p * 100) + '%';
-        $('#f-bart').textContent = 'Subiendo… ' + Math.round(p * 100) + '%';
-      }, '', datos.programa).then(function (archivo) { datos.archivo = archivo; $('#f-bart').textContent = 'Archivo subido. Guardando…'; });
-    }
-    paso.then(function () { return call('guardarContenido', datos); }).then(function (c) {
+    var nuevos = piezas.filter(function (p) { return p.file && !p.subido; });
+    // Varios archivos: van juntos en una subcarpeta "fecha · tema" dentro de Publicaciones / programa / mes
+    var lote = piezas.length > 1 ? datos.fecha + ' · ' + datos.tema : '';
+    var carpetaId = it ? it.carpetaId : '';
+    var hechos = 0;
+    var subirSiguiente = function (k) {
+      if (k >= nuevos.length) return Promise.resolve();
+      var p = nuevos[k];
+      $('#f-bart').textContent = 'Subiendo ' + (k + 1) + ' de ' + nuevos.length + '…';
+      return subirArchivo(p.file, function (avance) {
+        var total = (hechos + avance) / nuevos.length;
+        $('#f-bari').style.width = Math.round(total * 100) + '%';
+        $('#f-bart').textContent = 'Subiendo ' + (k + 1) + ' de ' + nuevos.length + ' · ' + Math.round(total * 100) + '%';
+      }, '', datos.programa, lote).then(function (r) {
+        p.subido = r.archivo; if (r.carpetaId) carpetaId = r.carpetaId; hechos++;
+        return subirSiguiente(k + 1);
+      });
+    };
+    if (nuevos.length) $('#f-bar').hidden = false;
+    subirSiguiente(0).then(function () {
+      if (nuevos.length) $('#f-bart').textContent = 'Archivos subidos. Guardando…';
+      datos.archivos = piezas.map(function (p) { return p.previo || p.subido; });
+      datos.carpetaId = carpetaId || '';
+      return call('guardarContenido', datos);
+    }).then(function (c) {
       toast(borrador ? 'Borrador guardado' : 'Enviado a revisión');
-      S.editItem = null; S.file = null; S.week = monday(c.fecha); S.sel = c.id;
+      S.editItem = null; S.week = monday(c.fecha); S.sel = c.id;
       S.day = Math.round((parse(c.fecha) - parse(S.week)) / 864e5);
       go('parrilla');
     }).catch(function (e) {
+      // Lo que ya se subió se conserva: al reintentar solo sube lo que faltó.
       msg.textContent = e.message; botones.forEach(function (b) { b.disabled = false; });
     });
   }
@@ -1415,7 +1554,7 @@ function pintarLinks(lista) {
       '<div class="searchbox">' + ic('search') + '<input type="search" id="lBuscar" placeholder="Buscar por tema" value="' + esc(S.lQ) + '" aria-label="Buscar publicación"></div>' +
       '<div class="plist" id="lLista">' + items + '</div></div>' +
     '<div class="card" id="lform"><div><p class="meta">' + fLarga(it.fecha) + ' · ' + esc(it.hora) + ' · ' + esc(it.tipo) + ' · ' + esc(it.estado) + '</p><h2 style="font-size:22px;margin-top:4px">' + esc(it.tema) + '</h2>' +
-      '<div class="actions" style="margin-top:8px">' + progTag(it.programa) + (it.archivo ? botonesDrive(it.archivo.id, true) : '') + '</div></div>' + aviso +
+      '<div class="actions" style="margin-top:8px">' + progTag(it.programa) + cuentaArchivos(it) + botonesDe(it, true) + '</div></div>' + aviso +
       '<div><span class="l">¿Dónde se publicó?</span>' + destToggles(it.dest, 'ld') + '</div>' +
       '<div class="linkgrid" id="lkgrid"></div>' +
       '<div class="actions"><button class="btn ghost" id="lSave">' + ic('save') + 'Guardar links</button><button class="btn" id="genAI">' + ic('spark') + 'Generar mensaje con IA</button><button class="btn ghost" id="genPlain">Armar sin IA</button></div>' +
@@ -1511,7 +1650,7 @@ function pintarAprob(d) {
     return '<div class="card acard">' + mediaHtml(it.archivo, it.tipo, 'sm') +
       '<div class="info"><div class="meta">' + fCorta(it.fecha) + ' · ' + esc(it.hora) + ' · ' + esc(it.tipo) + ' · subió ' + esc(it.autorNombre) + '</div><h2>' + esc(it.tema) + '</h2>' +
       '<div class="meta">' + progTag(it.programa) + nets(it) + '</div>' +
-      (it.copy ? '<div class="copytext">' + esc(it.copy) + '</div>' : '') + (it.archivo ? '<div class="actions">' + botonesDrive(it.archivo.id, true) + '</div>' : '') + acts + '</div></div>';
+      (it.copy ? '<div class="copytext">' + esc(it.copy) + '</div>' : '') + tiraArchivos(it, true) + (archivosDe(it).length ? '<div class="actions">' + cuentaArchivos(it) + botonesDe(it, true) + '</div>' : '') + acts + '</div></div>';
   }).join('') || '<div class="card"><div class="emptyst"><span class="round">' + ic('shield') + '</span><b>Todo revisado</b><p>No hay contenidos esperando aprobación.</p></div></div>';
 
   $('#view').innerHTML =
