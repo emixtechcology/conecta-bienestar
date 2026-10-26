@@ -194,7 +194,7 @@ button.thumb{cursor:pointer}
 .form .full{grid-column:1/-1}
 @media (max-width:620px){.form{grid-template-columns:minmax(0,1fr)}}
 label.l,span.l{display:block;font-weight:600;font-size:13px;margin-bottom:6px}
-input[type=text],input[type=url],input[type=email],input[type=password],input[type=time],input[type=date],input[type=month],input[type=number],select,textarea{width:100%;font-size:16px;color:var(--ink);background:var(--sunk);border:1px solid transparent;border-radius:14px;padding:11px 14px;min-height:46px}
+input[type=text],input[type=tel],input[type=search],input[type=url],input[type=email],input[type=password],input[type=time],input[type=date],input[type=month],input[type=number],select,textarea{width:100%;font-size:16px;color:var(--ink);background:var(--sunk);border:1px solid transparent;border-radius:14px;padding:11px 14px;min-height:46px}
 input:focus,select:focus,textarea:focus{border-color:var(--vino);outline:none;box-shadow:0 0 0 3px var(--vino-soft)}
 textarea{min-height:100px;resize:vertical}
 .toggles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
@@ -672,3 +672,50 @@ details.adv[open]{display:flex;flex-direction:column;gap:12px}
 .ag-ev.cont{background:transparent;border:1px dashed var(--line);padding:10px 14px}
 .ag-ev.cont h3{font-size:15px;margin:2px 0}
 .ag-ev.cont .ag-hora b{font-size:17px}
+
+/* Avisos (campanita) */
+.avw{position:relative;margin-left:auto}
+.avw + .me{margin-left:8px}
+.bell{position:relative;width:46px;height:46px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--ink);display:grid;place-items:center;cursor:pointer}
+.bell:hover{border-color:var(--vino);color:var(--vino)}
+.bell .i{width:21px;height:21px}
+.avnum{position:absolute;top:-3px;right:-3px;min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:var(--bad);color:#fff;font-size:11px;font-weight:800;display:grid;place-items:center;border:2px solid var(--card)}
+.avpanel{position:absolute;right:0;top:calc(100% + 8px);z-index:30;width:min(420px,calc(100vw - 32px));max-height:min(620px,calc(100vh - 120px));background:var(--card);border:1px solid var(--line);border-radius:20px;box-shadow:0 18px 40px rgba(90,30,50,.18);display:flex;flex-direction:column;overflow:hidden}
+.avh{display:flex;align-items:center;gap:8px;padding:12px 12px 10px 16px;border-bottom:1px solid var(--line)}
+.avh b{font-size:16px;margin-right:auto}
+.avh .linkbtn{font-size:13px}
+.avh .iconbtn{width:34px;height:34px}
+.avlist{overflow-y:auto;display:flex;flex-direction:column;padding:6px}
+.avit{display:grid;grid-template-columns:36px minmax(0,1fr) 10px;gap:10px;align-items:start;text-align:left;border:0;background:transparent;color:var(--ink);padding:10px;border-radius:14px;cursor:pointer;font:inherit}
+.avit:hover{background:var(--sunk)}
+.avit.nuevo{background:var(--vino-soft)}
+.avit.nuevo:hover{background:#F1D9E0}
+.avic{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:var(--sunk);color:var(--muted)}
+.avic svg{width:17px;height:17px}
+.avic.ok{background:var(--ok-bg);color:var(--ok)}
+.avic.bad{background:var(--bad-bg);color:var(--bad)}
+.avic.warn{background:var(--warn-bg);color:var(--warn)}
+.avtx{display:flex;flex-direction:column;gap:2px;min-width:0}
+.avtx b{font-size:14px;font-weight:700;line-height:1.3}
+.avtx span{font-size:13px;color:var(--ink);opacity:.85;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.avtx small{font-size:12px;color:var(--muted)}
+.avit .punto{width:9px;height:9px;border-radius:50%;background:var(--vino);margin-top:6px}
+.avf{border-top:1px solid var(--line);padding:10px 14px}
+.avf .meta{margin:0;font-size:12.5px;display:flex;align-items:center;gap:6px}
+.emptyst.sm{padding:26px 16px}
+.recordar{width:fit-content;font-size:14px}
+@media (max-width:720px){
+  .bell{width:40px;height:40px;border:0;background:var(--sunk)}
+  .avw{margin-left:auto}
+  .avw + .me{margin-left:6px}
+  .avpanel{position:fixed;left:12px;right:12px;top:72px;width:auto;max-height:calc(100vh - 96px)}
+}
+
+/* WhatsApp en Mi cuenta */
+.wa-card{border:1px solid var(--line);border-radius:18px;padding:14px 16px;background:var(--sunk)}
+.wa-card h3{display:flex;align-items:center;gap:6px;margin:0}
+.wa-card .pasos{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:14px}
+.wa-card .pasos .linkbtn{display:inline;margin-left:4px}
+.wa-card input,.wa-card select{background:var(--card)}
+.ok-line{color:var(--ok);display:flex;align-items:center;gap:6px}
+.meta.txt{display:block;line-height:1.55}
