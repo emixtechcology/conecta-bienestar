@@ -18,6 +18,7 @@ var IC = {
   layers:'<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>',
   folder:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
   search:'<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>',
+  bell:'<path d=\"M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z\"/><path d=\"M10 20a2 2 0 0 0 4 0\"/>',
   doc:'<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/>',
   image:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5L5 20"/>',
   copy:'<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>',
@@ -407,14 +408,65 @@ function mostrarCambio() {
 function entrar() {
   if (S.user.cambiar) { mostrarCambio(); return; }
   $('#splash').hidden = true; $('#acceso').hidden = true; $('#app').hidden = false;
-  pintarMarco(); go('inicio');
+  pintarMarco();
+  var ir = leerIr();
+  if (ir) irA_(ir); else go('inicio');
+  iniciarAvisos();
+  iniciarOneSignal();
 }
+/** Link de una notificación (?ir=aprobaciones&id=…&f=…): abre la app justo ahí. */
+function leerIr() {
+  var q = new URLSearchParams(location.search);
+  if (!q.get('ir')) return null;
+  var r = { modulo: q.get('ir'), refId: q.get('id') || '', refFecha: q.get('f') || '' };
+  try { history.replaceState(null, '', location.pathname); } catch (e) {}
+  return r;
+}
+function irA_(a) {
+  var permitido = function (m) { return MODS_ROL[S.user.rol].indexOf(m) > -1; };
+  if (a.modulo === 'aprobaciones' && permitido('aprobaciones')) { go('aprobaciones'); return; }
+  if (a.modulo === 'agenda') { if (a.refFecha) S.aWeek = monday(a.refFecha); go('agenda'); return; }
+  if (a.modulo === 'parrilla' || a.modulo === 'aprobaciones') {
+    if (a.refFecha) { S.week = monday(a.refFecha); S.day = null; }
+    if (a.refId) S.sel = a.refId;
+    go('parrilla'); return;
+  }
+  go('inicio');
+}
+
+/* OneSignal: notificaciones aunque la app esté cerrada (si el administrador lo conectó). */
+var OS = { listo: false, cargando: false };
+function iniciarOneSignal() {
+  var app = S.push && S.push.onesignal;
+  if (!app || OS.cargando || location.protocol !== 'https:') { if (OS.listo) osLogin(); return; }
+  OS.cargando = true;
+  var base = location.pathname.replace(/[^/]*$/, ''); // ej. /bienestar-conecta/
+  window.OneSignalDeferred = window.OneSignalDeferred || [];
+  window.OneSignalDeferred.push(function (OneSignal) {
+    return OneSignal.init({
+      appId: app,
+      serviceWorkerPath: base.replace(/^\//, '') + 'push/onesignal/OneSignalSDKWorker.js',
+      serviceWorkerParam: { scope: base + 'push/onesignal/' },
+      allowLocalhostAsSecureOrigin: true
+    }).then(function () {
+      OS.listo = true; OS.api = OneSignal; osLogin();
+      try { OneSignal.User.PushSubscription.addEventListener('change', function () { if (!$('#avPanel').hidden) pintarPanelAvisos(); }); } catch (e) {}
+    });
+  });
+  var sc = document.createElement('script');
+  sc.src = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js'; sc.defer = true;
+  sc.onerror = function () { OS.cargando = false; };
+  document.head.appendChild(sc);
+}
+function osLogin() { try { if (OS.listo && S.user) OS.api.login(S.user.id); } catch (e) {} }
+function osLogout() { try { if (OS.listo) OS.api.logout(); } catch (e) {} }
+function osSuscrito() { try { return OS.listo && OS.api.User.PushSubscription.optedIn; } catch (e) { return false; } }
 
 $('#fLogin').addEventListener('submit', function (e) {
   e.preventDefault();
   var b = $('#lBtn'); b.disabled = true; $('#lMsg').textContent = 'Entrando…';
-  call('login', { email: $('#lEmail').value, pass: $('#lPass').value }).then(function (r) {
-    S.token = r.token; S.user = r.usuario; S.cat = r.catalogos; guardarSesion(); $('#lPass').value = ''; $('#lMsg').textContent = ''; entrar();
+  call('login', { email: $('#lEmail').value, pass: $('#lPass').value, recordar: $('#lRec').checked }).then(function (r) {
+    S.token = r.token; S.user = r.usuario; S.cat = r.catalogos; S.push = r.push || {}; guardarSesion(); $('#lPass').value = ''; $('#lMsg').textContent = ''; entrar();
   }).catch(function (err) { $('#lMsg').textContent = err.message; }).then(function () { b.disabled = false; });
 });
 $('#fCambio').addEventListener('submit', function (e) {
@@ -429,6 +481,8 @@ $('#fCambio').addEventListener('submit', function (e) {
 });
 
 function salir() {
+  detenerAvisos();
+  osLogout();
   var t = S.token;
   S.token = null; S.user = null; guardarSesion();
   if (t && apiLista()) {
@@ -437,6 +491,39 @@ function salir() {
   mostrarAcceso('Cerraste sesión.');
 }
 
+var CALLMEBOT_TEL = '+34 694 25 79 52';
+function pintarWhatsapp(w) {
+  var box = $('#waBox'); if (!box) return;
+  var abierto = w.tieneClave;
+  var link = 'https://wa.me/' + CALLMEBOT_TEL.replace(/\D/g, '') + '?text=' + encodeURIComponent('I allow callmebot to send me messages');
+  box.innerHTML = '<h3>' + ic('bell', 'i ic-sm') + ' Avisos por WhatsApp</h3>' +
+    (abierto ? '<p class="meta ok-line">' + ic('check', 'i ic-sm') + ' Activado para ' + esc(w.tel) + '.</p>'
+      : '<p class="meta">Te llegan a tu WhatsApp aunque la app esté cerrada. Se activa una sola vez:</p>' +
+        '<ol class="pasos"><li>Guarda en tus contactos el número <b>' + CALLMEBOT_TEL + '</b> (CallMeBot).</li>' +
+        '<li>Mándale este mensaje por WhatsApp: <b>I allow callmebot to send me messages</b> <a class="linkbtn" href="' + link + '" target="_blank" rel="noopener">Abrir WhatsApp con el mensaje</a></li>' +
+        '<li>Te contesta con tu clave (<i>APIKEY</i>). Pégala aquí abajo con tu número.</li></ol>') +
+    '<div class="form"><div><label class="l" for="waTel">Tu WhatsApp</label><input type="tel" id="waTel" inputmode="tel" placeholder="10 dígitos" value="' + esc(w.tel) + '"></div>' +
+    '<div><label class="l" for="waKey">Clave de CallMeBot</label><input type="text" id="waKey" inputmode="numeric" autocomplete="off" placeholder="' + (w.tieneClave ? 'Guardada · escribe otra para cambiarla' : 'Ej. 123456') + '"></div>' +
+    '<div class="full"><label class="l" for="waNivel">¿Qué te llega?</label><select id="waNivel">' +
+      [['importantes', 'Lo importante: por aprobar, aprobado, rechazado, coberturas y cambios'], ['todos', 'Todo lo que llega a la campanita'], ['nada', 'Nada por ahora (pausar)']].map(function (o) { return '<option value="' + o[0] + '"' + (w.nivel === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div></div>' +
+    '<div class="actions"><button class="btn" id="waSave">' + ic('save') + 'Guardar</button>' + (w.tieneClave ? '<button class="btn ghost" id="waTest">Enviarme una prueba</button><button class="btn ghost danger" id="waDel">Quitar</button>' : '') + '</div>' +
+    '<p class="status" id="waMsg" aria-live="polite"></p>' +
+    '<p class="meta">CallMeBot es un servicio gratuito de terceros: a veces tarda unos minutos. La campanita y el correo siguen funcionando igual.</p>';
+  var msg = function (t, err) { var m = $('#waMsg'); m.textContent = t; m.className = 'status' + (err ? ' err' : ''); };
+  $('#waSave').onclick = function () {
+    var b = this; b.disabled = true; msg('Guardando…');
+    call('guardarWhatsapp', { tel: $('#waTel').value, key: $('#waKey').value, nivel: $('#waNivel').value })
+      .then(function (r) { pintarWhatsapp(r); toast('WhatsApp guardado'); var m2 = $('#waMsg'); if (m2) m2.textContent = 'Guardado. Toca "Enviarme una prueba" para confirmar.'; })
+      .catch(function (e) { msg(e.message, true); b.disabled = false; });
+  };
+  var t = $('#waTest'); if (t) t.onclick = function () {
+    var b = this; b.disabled = true; msg('Enviando…');
+    call('probarWhatsapp').then(function () { msg('Listo: revisa tu WhatsApp en unos segundos.'); }).catch(function (e) { msg(e.message, true); }).then(function () { b.disabled = false; });
+  };
+  var dl = $('#waDel'); if (dl) dl.onclick = function () {
+    call('guardarWhatsapp', { quitar: true }).then(function (r) { pintarWhatsapp(r); toast('WhatsApp quitado'); }).catch(function (e) { msg(e.message, true); });
+  };
+}
 function ventanaCuenta() {
   abrirModal('Tu cuenta',
     '<dl class="kv"><dt>Nombre</dt><dd>' + esc(S.user.nombre) + '</dd><dt>Correo</dt><dd>' + esc(S.user.email) + '</dd><dt>Rol</dt><dd>' + ROL_TXT[S.user.rol] + '</dd></dl>' +
@@ -444,7 +531,9 @@ function ventanaCuenta() {
     '<div><label class="l" for="pAct">Contraseña actual</label><input type="password" id="pAct" autocomplete="current-password"></div>' +
     '<div><label class="l" for="pNue">Contraseña nueva</label><input type="password" id="pNue" autocomplete="new-password"></div>' +
     '<button class="btn" type="submit">' + ic('save') + 'Guardar</button><p class="status err" id="pMsg"></p></form>' +
+    '<section class="stack wa-card" id="waBox"><h3>' + ic('bell', 'i ic-sm') + ' Avisos por WhatsApp</h3><p class="meta">Cargando…</p></section>' +
     '<button class="btn ghost" id="pSalir">Cerrar sesión</button>');
+  call('miWhatsapp').then(pintarWhatsapp).catch(function (e) { $('#waBox').innerHTML = '<p class="status err">' + esc(e.message) + '</p>'; });
   $('#fPass').onsubmit = function (e) {
     e.preventDefault();
     call('cambiarPass', { actual: $('#pAct').value, nueva: $('#pNue').value })
@@ -2206,6 +2295,13 @@ function pintarConfig(c) {
       '<div class="card"><h2>Avisos por correo</h2><p class="meta">Los aprobadores reciben un correo cuando hay algo por revisar, y quien lo subió recibe otro cuando se aprueba o se rechaza (con el nombre de quien lo revisó).</p>' +
         '<label class="chk" style="width:fit-content"><input type="checkbox" id="cNot"' + (c.notificar ? ' checked' : '') + '>Enviar avisos por correo</label></div>' +
 
+      '<div class="card"><h2>Notificaciones (OneSignal)</h2><p class="meta txt">Para que los avisos lleguen al teléfono o a la computadora aunque la app esté cerrada. Gratis para apps web. Crea la app en onesignal.com (tipo <b>Web</b>, integración <b>Custom Code</b>, sitio <b>' + esc(location.origin) + '</b>) y pega aquí sus datos de <i>Settings → Keys &amp; IDs</i>.</p>' +
+        '<div><label class="l" for="osApp">OneSignal App ID</label><input type="text" id="osApp" autocomplete="off" placeholder="1a2b3c4d-…" value="' + esc(c.onesignal ? c.onesignal.appId : '') + '"></div>' +
+        '<div><label class="l" for="osKey">App API key</label><input type="password" id="osKey" autocomplete="off" placeholder="' + (c.onesignal && c.onesignal.tieneClave ? 'Guardada · escribe otra para reemplazarla' : 'Pega la clave aquí') + '"></div>' +
+        '<div class="actions"><button class="btn" id="osSave">' + ic('save') + 'Guardar</button>' + (c.onesignal && c.onesignal.appId && c.onesignal.tieneClave ? '<button class="btn ghost" id="osTest">Enviarme una prueba</button><button class="btn ghost" id="osDel">Desconectar</button>' : '') + '</div>' +
+        '<p class="status" id="osMsg" aria-live="polite"></p>' +
+        (c.appUrl ? '' : '<p class="meta">Guarda también el link de la app (más abajo) para que la notificación abra la app al tocarla.</p>') + '</div>' +
+
       '<div class="card"><h2>Inteligencia artificial</h2><p class="meta">Opcional. Con una clave de Gemini (Google AI Studio) la IA redacta la línea del tema. Sin clave, el mensaje se arma con el tema tal cual.</p>' +
         '<div><label class="l" for="gKey">Clave de Gemini</label><input type="password" id="gKey" autocomplete="off" placeholder="' + (c.gemini.tieneClave ? 'Guardada · escribe otra para reemplazarla' : 'Pega la clave aquí') + '"></div>' +
         '<div><label class="l" for="gMod">Modelo</label><input type="text" id="gMod" value="' + esc(c.gemini.modelo) + '"></div>' +
@@ -2259,6 +2355,17 @@ function pintarConfig(c) {
   $('#cNot').onchange = function () { guardarCfg({ notificar: this.checked }, this.checked ? 'Avisos activados' : 'Avisos desactivados'); };
   $('#gSave').onclick = function () { guardarCfg({ geminiKey: $('#gKey').value.trim(), geminiModelo: $('#gMod').value.trim() }); };
   var gd = $('#gDel'); if (gd) gd.onclick = function () { guardarCfg({ geminiKey: 'BORRAR' }, 'Clave eliminada'); };
+  $('#osSave').onclick = function () {
+    guardarCfg({ onesignalApp: $('#osApp').value.trim(), onesignalKey: $('#osKey').value.trim() }, 'OneSignal guardado').then(function () {
+      S.push = { onesignal: $('#osApp') ? $('#osApp').value.trim() : '' }; iniciarOneSignal();
+    });
+  };
+  var ot = $('#osTest'); if (ot) ot.onclick = function () {
+    var b = this; b.disabled = true; $('#osMsg').textContent = 'Enviando…'; $('#osMsg').className = 'status';
+    call('probarPush').then(function () { $('#osMsg').textContent = 'Enviada. Debe llegarte en unos segundos (también con la app cerrada).'; })
+      .catch(function (e) { $('#osMsg').textContent = e.message; $('#osMsg').className = 'status err'; }).then(function () { b.disabled = false; });
+  };
+  var od = $('#osDel'); if (od) od.onclick = function () { guardarCfg({ onesignalApp: '', onesignalKey: 'BORRAR' }, 'OneSignal desconectado'); };
   // Asistente de conexión con Meta
   var wMsg = function (t, err) { var m = $('#wMsg'); m.textContent = t; m.className = 'status' + (err ? ' err' : ''); };
   $('#wGo').onclick = function () {
@@ -2367,6 +2474,132 @@ $('#dSalir').onclick = function () { cerrarMenu(); salir(); };
 $('#dPass').onclick = function () { cerrarMenu(); ventanaCuenta(); };
 $('#dTV').onclick = function () { cerrarMenu(); abrirTV(); };
 /* Menú de usuario (arriba a la derecha) */
+/* =========================================================
+   Avisos (campanita): cambios, aprobaciones, rechazos, coberturas…
+   Se revisan cada minuto mientras la app está abierta. Con permiso,
+   también llegan como notificación del teléfono o de la computadora.
+   ========================================================= */
+var AV = { lista: [], sinLeer: 0, timer: null, listo: false };
+var AV_ICONO = { revision: 'shield', aprobado: 'check', rechazado: 'x', edicion: 'edit', eliminado: 'trash', publicado: 'link', asignado: 'pin', cambio: 'calendar', cancelado: 'x', cubierto: 'check', info: 'bell' };
+var AV_COLOR = { aprobado: 'ok', cubierto: 'ok', publicado: 'ok', rechazado: 'bad', cancelado: 'bad', eliminado: 'bad', revision: 'warn', asignado: 'warn', cambio: 'warn' };
+function avConocidos() { try { return JSON.parse(localStorage.getItem('bc_av') || '{}'); } catch (e) { return {}; } }
+function avGuardarConocidos(o) {
+  var ks = Object.keys(o); if (ks.length > 300) ks.slice(0, ks.length - 300).forEach(function (k) { delete o[k]; });
+  try { localStorage.setItem('bc_av', JSON.stringify(o)); } catch (e) {}
+}
+function haceTxt(f) {
+  var p = String(f || '').match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+  if (!p) return '';
+  var d = new Date(+p[1], p[2] - 1, +p[3], +p[4], +p[5]), min = Math.round((Date.now() - d) / 60000);
+  if (min < 1) return 'ahora';
+  if (min < 60) return 'hace ' + min + ' min';
+  if (min < 1440) return 'hace ' + Math.round(min / 60) + ' h';
+  if (min < 2880) return 'ayer';
+  return DIAS[d.getDay()] + ' ' + d.getDate() + ' ' + MES[d.getMonth()];
+}
+function iniciarAvisos() {
+  detenerAvisos();
+  AV.listo = false;
+  cargarAvisos();
+  AV.timer = setInterval(function () { if (document.visibilityState === 'visible') cargarAvisos(); }, 60000);
+}
+function detenerAvisos() {
+  clearInterval(AV.timer); AV.timer = null; AV.lista = []; AV.sinLeer = 0;
+  var n = $('#avNum'); if (n) n.hidden = true;
+  cerrarAvisos();
+}
+document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible' && S.user && AV.timer) cargarAvisos(); });
+function cargarAvisos() {
+  if (!S.token || !S.user) return Promise.resolve();
+  return call('avisos', { limite: 40 }).then(function (r) {
+    var conocidos = avConocidos();
+    var nuevos = r.avisos.filter(function (a) { return !a.leido && !conocidos[a.id]; });
+    r.avisos.forEach(function (a) { conocidos[a.id] = 1; });
+    avGuardarConocidos(conocidos);
+    if (AV.listo && nuevos.length) { notificarSistema(nuevos); toast(nuevos.length === 1 ? nuevos[0].titulo : 'Tienes ' + nuevos.length + ' avisos nuevos'); }
+    AV.listo = true;
+    AV.lista = r.avisos; AV.sinLeer = r.sinLeer;
+    pintarCampana();
+    if (!$('#avPanel').hidden) pintarPanelAvisos();
+    var q = new URLSearchParams(location.search).get('aviso');
+    if (q) { history.replaceState(null, '', location.pathname); var a = AV.lista.filter(function (x) { return x.id === q; })[0]; if (a) abrirAviso(a); }
+  }).catch(function () { /* sin conexión: se intenta en el siguiente minuto */ });
+}
+function pintarCampana() {
+  var n = $('#avNum');
+  n.hidden = !AV.sinLeer; n.textContent = AV.sinLeer > 99 ? '99+' : String(AV.sinLeer);
+  $('#avBtn').setAttribute('aria-label', AV.sinLeer ? 'Avisos: ' + AV.sinLeer + ' sin leer' : 'Avisos');
+  try { if (navigator.setAppBadge) { if (AV.sinLeer) navigator.setAppBadge(AV.sinLeer); else navigator.clearAppBadge(); } } catch (e) {}
+}
+function permisoNotif() { return 'Notification' in window ? Notification.permission : 'no'; }
+function pintarPanelAvisos() {
+  var p = permisoNotif(), esTel = isPhone();
+  if (OS.listo && p === 'granted' && !osSuscrito()) p = 'default';
+  var pie = p === 'default'
+    ? '<button class="btn sm ghost" id="avPermiso">' + ic('bell') + 'Recibir notificaciones en este ' + (esTel ? 'teléfono' : 'equipo') + '</button>'
+    : p === 'denied' ? '<p class="meta">Las notificaciones están bloqueadas en este navegador. Actívalas en la configuración del sitio.</p>'
+    : p === 'no' ? '<p class="meta">Este navegador no permite notificaciones. En iPhone, primero agrega la app a tu pantalla de inicio y ábrela desde ahí.</p>'
+    : '<p class="meta">' + ic('check', 'i ic-sm') + ' Notificaciones activadas en este ' + (esTel ? 'teléfono' : 'equipo') + (osSuscrito() ? ', aunque la app esté cerrada.' : ' mientras la app esté abierta o en segundo plano.') + '</p>';
+  $('#avPanel').innerHTML =
+    '<div class="avh"><b>Avisos</b>' + (AV.sinLeer ? '<span class="tag warn">' + AV.sinLeer + ' sin leer</span><button class="linkbtn" id="avTodo">Marcar todo como leído</button>' : '') +
+      '<button class="iconbtn" id="avCerrar" aria-label="Cerrar avisos">' + ic('x') + '</button></div>' +
+    (AV.lista.length ? '<div class="avlist">' + AV.lista.map(function (a) {
+      return '<button class="avit' + (a.leido ? '' : ' nuevo') + '" data-aviso="' + esc(a.id) + '"><span class="avic ' + (AV_COLOR[a.tipo] || '') + '">' + ic(AV_ICONO[a.tipo] || 'bell') + '</span>' +
+        '<span class="avtx"><b>' + esc(a.titulo) + '</b>' + (a.texto ? '<span>' + esc(a.texto) + '</span>' : '') + '<small>' + esc(haceTxt(a.fecha)) + (a.deNombre && a.deNombre !== 'Sistema' ? ' · ' + esc(a.deNombre) : '') + '</small></span>' +
+        (a.leido ? '' : '<i class="punto" aria-label="Sin leer"></i>') + '</button>';
+    }).join('') + '</div>'
+      : '<div class="emptyst sm"><span class="round">' + ic('bell') + '</span><b>Sin avisos</b><p>Aquí verás lo que suban, aprueben, rechacen o cambien.</p></div>') +
+    '<div class="avf">' + pie + '</div>';
+  $('#avCerrar').onclick = function () { cerrarAvisos(); $('#avBtn').focus(); };
+  var t = $('#avTodo'); if (t) t.onclick = function () {
+    AV.lista.forEach(function (a) { a.leido = true; }); AV.sinLeer = 0; pintarCampana(); pintarPanelAvisos();
+    call('leerAvisos', { todos: true }).catch(function () {});
+  };
+  var pb = $('#avPermiso'); if (pb) pb.onclick = function () {
+    if (OS.listo) {
+      Promise.resolve(OS.api.User.PushSubscription.optIn()).catch(function () {}).then(function () { setTimeout(pintarPanelAvisos, 800); });
+      return;
+    }
+    Notification.requestPermission().then(function (r) {
+      if (r === 'granted') notificarSistema([{ id: 'prueba', titulo: 'Notificaciones activadas', texto: 'Así te llegarán los avisos de Bienestar Conecta.' }]);
+      pintarPanelAvisos();
+    });
+  };
+  $$('[data-aviso]').forEach(function (b) { b.onclick = function () { var a = AV.lista.filter(function (x) { return x.id === b.dataset.aviso; })[0]; if (a) abrirAviso(a); }; });
+}
+function abrirAvisos() { pintarPanelAvisos(); $('#avPanel').hidden = false; $('#avBtn').setAttribute('aria-expanded', 'true'); cerrarUMenu(); }
+function cerrarAvisos() { var p = $('#avPanel'); if (!p || p.hidden) return; p.hidden = true; $('#avBtn').setAttribute('aria-expanded', 'false'); }
+function abrirAviso(a) {
+  cerrarAvisos();
+  if (!a.leido) {
+    a.leido = true; AV.sinLeer = Math.max(0, AV.sinLeer - 1); pintarCampana();
+    call('leerAvisos', { ids: [a.id] }).catch(function () {});
+  }
+  irA_(a);
+}
+function notificarSistema(lista) {
+  if (permisoNotif() !== 'granted' || !lista.length) return;
+  if (osSuscrito()) return; // OneSignal ya la manda (evita que llegue doble)
+  var items = lista.length > 3 ? [{ id: 'varios', titulo: 'Tienes ' + lista.length + ' avisos nuevos', texto: lista.slice(0, 3).map(function (a) { return a.titulo; }).join(' · ') }] : lista;
+  var mostrar = function (reg) {
+    items.forEach(function (a) {
+      var op = { body: a.texto || '', tag: 'bc-' + a.id, icon: 'iconos/icono-192.png', badge: 'iconos/icono-192.png', data: { aviso: a.id } };
+      try { if (reg) reg.showNotification(a.titulo, op); else new Notification(a.titulo, op); } catch (e) {}
+    });
+  };
+  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) navigator.serviceWorker.ready.then(mostrar).catch(function () { mostrar(null); });
+  else mostrar(null);
+}
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', function (e) {
+    var id = e.data && e.data.aviso; if (!id || !S.user) return;
+    var a = AV.lista.filter(function (x) { return x.id === id; })[0];
+    if (a) abrirAviso(a); else cargarAvisos();
+  });
+}
+$('#avBtn').onclick = function (e) { e.stopPropagation(); if ($('#avPanel').hidden) abrirAvisos(); else cerrarAvisos(); };
+document.addEventListener('click', function (e) { if (!e.target.closest('.avw')) cerrarAvisos(); });
+
 function abrirUMenu() { $('#umenu').hidden = false; $('#meBtn').setAttribute('aria-expanded', 'true'); $('#uCuenta').focus(); }
 function cerrarUMenu() { if ($('#umenu').hidden) return; $('#umenu').hidden = true; $('#meBtn').setAttribute('aria-expanded', 'false'); }
 $('#meBtn').onclick = function (e) { e.stopPropagation(); if ($('#umenu').hidden) abrirUMenu(); else cerrarUMenu(); };
@@ -2380,6 +2613,7 @@ document.addEventListener('keydown', function (e) {
   if (e.key !== 'Escape') return;
   if (TV.on) { cerrarTV(); return; }
   if (!$('#umenu').hidden) { cerrarUMenu(); $('#meBtn').focus(); return; }
+  if (!$('#avPanel').hidden) { cerrarAvisos(); $('#avBtn').focus(); return; }
   if (!$('#modal').hidden) cerrarModal();
   else if (!$('#drawer').hidden) { cerrarMenu(); $('#menuBtn').focus(); }
 });
@@ -2397,7 +2631,17 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
   S.token = leerSesion();
   if (!S.token) { mostrarAcceso(''); return; }
   $('#acceso').hidden = true;
-  call('yo').then(function (u) { S.cat = u.catalogos; S.user = u; entrar(); }).catch(function () { if (!S.user) mostrarAcceso(''); });
+  // Si no hay internet al abrir, no se cierra la sesión: se reintenta y la sesión guardada sigue.
+  var intento = 0;
+  var probar = function () {
+    call('yo').then(function (u) { S.cat = u.catalogos; S.push = u.push || {}; S.user = u; entrar(); }).catch(function (err) {
+      if (!S.token) return; // la sesión terminó de verdad (ya se mostró el acceso)
+      intento++;
+      if (intento < 4) { $('#splash').hidden = false; setTimeout(probar, 2500 * intento); return; }
+      mostrarAcceso(err.message + ' Tu sesión sigue guardada: vuelve a abrir la app cuando tengas internet.');
+    });
+  };
+  probar();
 })();
 
 })();
