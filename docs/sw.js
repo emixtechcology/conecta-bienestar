@@ -4,7 +4,7 @@
  * Siempre intenta primero la versión nueva de internet; la copia guardada solo se usa sin conexión.
  * Las peticiones al servidor (Apps Script) nunca se guardan.
  */
-const CACHE = 'bc-v1';
+const CACHE = 'bc-v2';
 const ARCHIVOS = ['./', 'index.html', 'estilos.css', 'app.js', 'config.js', 'manifest.webmanifest', 'iconos/icono.svg', 'iconos/icono-192.png'];
 
 self.addEventListener('install', (e) => {
@@ -29,5 +29,21 @@ self.addEventListener('fetch', (e) => {
         return r;
       })
       .catch(() => caches.match(e.request).then((r) => r || caches.match('./')))
+  );
+});
+
+// Al tocar una notificación: abre (o enfoca) la app y la lleva al aviso.
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const aviso = e.notification.data && e.notification.data.aviso;
+  e.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((lista) => {
+      const abierta = lista.find((c) => c.url.indexOf(self.registration.scope) === 0);
+      if (abierta) {
+        if (aviso) abierta.postMessage({ aviso });
+        return abierta.focus();
+      }
+      return self.clients.openWindow('./' + (aviso && aviso !== 'prueba' && aviso !== 'varios' ? '?aviso=' + encodeURIComponent(aviso) : ''));
+    })
   );
 });
