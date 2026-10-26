@@ -2367,7 +2367,8 @@ function pintarConfig(c) {
       if (r.entregados === null) t += 'Debe llegarte en unos segundos (también con la app cerrada).';
       else if (r.entregados > 0) t += 'OneSignal la entregó a ' + r.entregados + (r.entregados === 1 ? ' dispositivo' : ' dispositivos') + (r.fallidos ? ' (falló en ' + r.fallidos + ')' : '') + '. Si no la ves, el equipo la está ocultando: revisa el centro de notificaciones y "No molestar".';
       else if (r.pendientes) t += 'OneSignal todavía la está entregando; espera un momento.';
-      else t += 'OneSignal no la pudo entregar a ningún dispositivo' + (r.fallidos ? ' (falló en ' + r.fallidos + ')' : '') + '. Vuelve a activar las notificaciones en la campanita.';
+      else if (r.fallidos) t += 'OneSignal intentó entregarla pero falló en ' + r.fallidos + (r.fallidos === 1 ? ' dispositivo' : ' dispositivos') + '. Vuelve a activar las notificaciones en la campanita de ese dispositivo.';
+      else t += 'OneSignal la aceptó, pero aún no reporta entregas (a veces tarda en actualizar sus cifras). Si no te llega en un minuto, vuelve a activar las notificaciones en la campanita.';
       $('#osMsg').textContent = t;
     })
       .catch(function (e) { $('#osMsg').textContent = e.message; $('#osMsg').className = 'status err'; }).then(function () { b.disabled = false; });
@@ -2546,7 +2547,8 @@ function pintarPanelAvisos() {
     ? '<button class="btn sm ghost" id="avPermiso">' + ic('bell') + 'Recibir notificaciones en este ' + (esTel ? 'teléfono' : 'equipo') + '</button>'
     : p === 'denied' ? '<p class="meta">Las notificaciones están bloqueadas en este navegador. Actívalas en la configuración del sitio.</p>'
     : p === 'no' ? '<p class="meta">Este navegador no permite notificaciones. En iPhone, primero agrega la app a tu pantalla de inicio y ábrela desde ahí.</p>'
-    : '<p class="meta">' + ic('check', 'i ic-sm') + ' Notificaciones activadas en este ' + (esTel ? 'teléfono' : 'equipo') + (osSuscrito() ? ', aunque la app esté cerrada.' : ' mientras la app esté abierta o en segundo plano.') + '</p>';
+    : '<p class="meta">' + ic('check', 'i ic-sm') + ' Notificaciones activadas en este ' + (esTel ? 'teléfono' : 'equipo') + (osSuscrito() ? ', aunque la app esté cerrada.' : ' mientras la app esté abierta o en segundo plano.') + '</p>' +
+      (OS.listo ? '<button class="linkbtn" id="avReset">¿No te llegan? Volver a activar en este ' + (esTel ? 'teléfono' : 'equipo') + '</button>' : '');
   $('#avPanel').innerHTML =
     '<div class="avh"><b>Avisos</b>' + (AV.sinLeer ? '<span class="tag warn">' + AV.sinLeer + ' sin leer</span><button class="linkbtn" id="avTodo">Marcar todo como leído</button>' : '') +
       '<button class="iconbtn" id="avCerrar" aria-label="Cerrar avisos">' + ic('x') + '</button></div>' +
@@ -2571,6 +2573,14 @@ function pintarPanelAvisos() {
       if (r === 'granted') notificarSistema([{ id: 'prueba', titulo: 'Notificaciones activadas', texto: 'Así te llegarán los avisos de Bienestar Conecta.' }]);
       pintarPanelAvisos();
     });
+  };
+  var rs = $('#avReset'); if (rs) rs.onclick = function () {
+    rs.disabled = true; rs.textContent = 'Reactivando…';
+    var ps = OS.api.User.PushSubscription;
+    Promise.resolve(ps.optOut()).catch(function () {})
+      .then(function () { return new Promise(function (ok) { setTimeout(ok, 1500); }); })
+      .then(function () { return ps.optIn(); }).catch(function () {})
+      .then(function () { osLogin(); toast('Notificaciones reactivadas en este dispositivo'); setTimeout(pintarPanelAvisos, 1200); });
   };
   $$('[data-aviso]').forEach(function (b) { b.onclick = function () { var a = AV.lista.filter(function (x) { return x.id === b.dataset.aviso; })[0]; if (a) abrirAviso(a); }; });
 }
