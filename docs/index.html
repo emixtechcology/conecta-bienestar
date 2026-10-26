@@ -47,6 +47,7 @@
       <form id="fLogin" class="stack" novalidate>
         <div><label class="l" for="lEmail">Correo</label><input type="email" id="lEmail" autocomplete="username" inputmode="email"></div>
         <div><label class="l" for="lPass">Contraseña</label><input type="password" id="lPass" autocomplete="current-password"></div>
+        <label class="chk recordar"><input type="checkbox" id="lRec" checked>Mantener mi sesión abierta en este dispositivo</label>
         <button class="btn block" type="submit" id="lBtn">Entrar</button>
         <p class="status err" id="lMsg" aria-live="polite"></p>
         <p class="meta center">¿Olvidaste tu contraseña? Pídele al administrador que la restablezca.</p>
@@ -77,6 +78,13 @@
             <path d="M65 60 C 70 30, 92 12, 120 16 C 122 46, 98 66, 65 60 Z" style="fill:var(--oro)"/>
           </svg>
           <div><b>Bienestar</b> <span>Conecta</span></div>
+        </div>
+        <div class="avw">
+          <button class="bell" id="avBtn" aria-label="Avisos" aria-haspopup="dialog" aria-expanded="false" aria-controls="avPanel">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>
+            <span class="avnum" id="avNum" hidden></span>
+          </button>
+          <div class="avpanel" id="avPanel" role="dialog" aria-label="Avisos" hidden></div>
         </div>
         <div class="me">
           <button class="userchip" id="meBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="umenu">
