@@ -2362,7 +2362,14 @@ function pintarConfig(c) {
   };
   var ot = $('#osTest'); if (ot) ot.onclick = function () {
     var b = this; b.disabled = true; $('#osMsg').textContent = 'Enviando…'; $('#osMsg').className = 'status';
-    call('probarPush').then(function () { $('#osMsg').textContent = 'Enviada. Debe llegarte en unos segundos (también con la app cerrada).'; })
+    call('probarPush').then(function (r) {
+      var t = 'Enviada a las ' + r.hora + '. ';
+      if (r.entregados === null) t += 'Debe llegarte en unos segundos (también con la app cerrada).';
+      else if (r.entregados > 0) t += 'OneSignal la entregó a ' + r.entregados + (r.entregados === 1 ? ' dispositivo' : ' dispositivos') + (r.fallidos ? ' (falló en ' + r.fallidos + ')' : '') + '. Si no la ves, el equipo la está ocultando: revisa el centro de notificaciones y "No molestar".';
+      else if (r.pendientes) t += 'OneSignal todavía la está entregando; espera un momento.';
+      else t += 'OneSignal no la pudo entregar a ningún dispositivo' + (r.fallidos ? ' (falló en ' + r.fallidos + ')' : '') + '. Vuelve a activar las notificaciones en la campanita.';
+      $('#osMsg').textContent = t;
+    })
       .catch(function (e) { $('#osMsg').textContent = e.message; $('#osMsg').className = 'status err'; }).then(function () { b.disabled = false; });
   };
   var od = $('#osDel'); if (od) od.onclick = function () { guardarCfg({ onesignalApp: '', onesignalKey: 'BORRAR' }, 'OneSignal desconectado'); };
