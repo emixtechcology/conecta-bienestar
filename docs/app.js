@@ -491,34 +491,29 @@ function salir() {
   mostrarAcceso('Cerraste sesión.');
 }
 
-var CALLMEBOT_TEL = '+34 694 25 79 52';
 function pintarWhatsapp(w) {
   var box = $('#waBox'); if (!box) return;
-  var abierto = w.tieneClave;
-  var link = 'https://wa.me/' + CALLMEBOT_TEL.replace(/\D/g, '') + '?text=' + encodeURIComponent('I allow callmebot to send me messages');
   box.innerHTML = '<h3>' + ic('bell', 'i ic-sm') + ' Avisos por WhatsApp</h3>' +
-    (abierto ? '<p class="meta ok-line">' + ic('check', 'i ic-sm') + ' Activado para ' + esc(w.tel) + '.</p>'
-      : '<p class="meta">Te llegan a tu WhatsApp aunque la app esté cerrada. Se activa una sola vez:</p>' +
-        '<ol class="pasos"><li>Guarda en tus contactos el número <b>' + CALLMEBOT_TEL + '</b> (CallMeBot).</li>' +
-        '<li>Mándale este mensaje por WhatsApp: <b>I allow callmebot to send me messages</b> <a class="linkbtn" href="' + link + '" target="_blank" rel="noopener">Abrir WhatsApp con el mensaje</a></li>' +
-        '<li>Te contesta con tu clave (<i>APIKEY</i>). Pégala aquí abajo con tu número.</li></ol>') +
+    (w.activo ? '<p class="meta ok-line">' + ic('check', 'i ic-sm') + ' Activado para ' + esc(w.tel) + '.</p>'
+      : '<p class="meta txt">Te llegan a tu WhatsApp, desde el número oficial de Bienestar Conecta, aunque la app esté cerrada. Solo escribe tu número.</p>') +
+    (w.disponible ? '' : '<p class="meta txt">El administrador todavía está conectando WhatsApp. Puedes guardar tu número desde ahora; empezará a llegarte en cuanto quede listo.</p>') +
     '<div class="form"><div><label class="l" for="waTel">Tu WhatsApp</label><input type="tel" id="waTel" inputmode="tel" placeholder="10 dígitos" value="' + esc(w.tel) + '"></div>' +
-    '<div><label class="l" for="waKey">Clave de CallMeBot</label><input type="text" id="waKey" inputmode="numeric" autocomplete="off" placeholder="' + (w.tieneClave ? 'Guardada · escribe otra para cambiarla' : 'Ej. 123456') + '"></div>' +
-    '<div class="full"><label class="l" for="waNivel">¿Qué te llega?</label><select id="waNivel">' +
-      [['importantes', 'Lo importante: por aprobar, aprobado, rechazado, coberturas y cambios'], ['todos', 'Todo lo que llega a la campanita'], ['nada', 'Nada por ahora (pausar)']].map(function (o) { return '<option value="' + o[0] + '"' + (w.nivel === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div></div>' +
-    '<div class="actions"><button class="btn" id="waSave">' + ic('save') + 'Guardar</button>' + (w.tieneClave ? '<button class="btn ghost" id="waTest">Enviarme una prueba</button><button class="btn ghost danger" id="waDel">Quitar</button>' : '') + '</div>' +
-    '<p class="status" id="waMsg" aria-live="polite"></p>' +
-    '<p class="meta">CallMeBot es un servicio gratuito de terceros: a veces tarda unos minutos. La campanita y el correo siguen funcionando igual.</p>';
+    '<div><label class="l" for="waNivel">¿Qué te llega?</label><select id="waNivel">' +
+      [['importantes', 'Lo importante'], ['todos', 'Todo lo de la campanita'], ['nada', 'Nada por ahora (pausar)']].map(function (o) { return '<option value="' + o[0] + '"' + (w.nivel === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div></div>' +
+    '<p class="meta txt">"Lo importante" es: por aprobar, aprobado, rechazado, coberturas asignadas y cambios en la agenda.</p>' +
+    '<div class="actions"><button class="btn" id="waSave">' + ic('save') + 'Guardar</button>' + (w.activo && w.disponible ? '<button class="btn ghost" id="waTest">Enviarme una prueba</button>' : '') + (w.activo ? '<button class="btn ghost danger" id="waDel">Quitar</button>' : '') + '</div>' +
+    '<p class="status" id="waMsg" aria-live="polite"></p>';
   var msg = function (t, err) { var m = $('#waMsg'); m.textContent = t; m.className = 'status' + (err ? ' err' : ''); };
   $('#waSave').onclick = function () {
     var b = this; b.disabled = true; msg('Guardando…');
-    call('guardarWhatsapp', { tel: $('#waTel').value, key: $('#waKey').value, nivel: $('#waNivel').value })
-      .then(function (r) { pintarWhatsapp(r); toast('WhatsApp guardado'); var m2 = $('#waMsg'); if (m2) m2.textContent = 'Guardado. Toca "Enviarme una prueba" para confirmar.'; })
+    call('guardarWhatsapp', { tel: $('#waTel').value, nivel: $('#waNivel').value })
+      .then(function (r) { pintarWhatsapp(r); toast('WhatsApp guardado'); if (r.disponible) { var m2 = $('#waMsg'); if (m2) m2.textContent = 'Guardado. Toca "Enviarme una prueba" para confirmar.'; } })
       .catch(function (e) { msg(e.message, true); b.disabled = false; });
   };
   var t = $('#waTest'); if (t) t.onclick = function () {
     var b = this; b.disabled = true; msg('Enviando…');
-    call('probarWhatsapp').then(function () { msg('Listo: revisa tu WhatsApp en unos segundos.'); }).catch(function (e) { msg(e.message, true); }).then(function () { b.disabled = false; });
+    call('probarWhatsapp').then(function () { msg('Listo: revisa tu WhatsApp en unos segundos.'); call('miWhatsapp').then(function (r) { var v = $('#waTel'); if (v) v.value = r.tel; }); })
+      .catch(function (e) { msg(e.message, true); }).then(function () { b.disabled = false; });
   };
   var dl = $('#waDel'); if (dl) dl.onclick = function () {
     call('guardarWhatsapp', { quitar: true }).then(function (r) { pintarWhatsapp(r); toast('WhatsApp quitado'); }).catch(function (e) { msg(e.message, true); });
@@ -1962,7 +1957,10 @@ function pintarReporte(d) {
         usuario: det.usuario || det.nombre || '',
         segA: segA, segP: segP, crec: segA !== null && segP !== null ? segA - segP : null, crecP: segA !== null && segP ? pct1(segA, segP) : null,
         vis: f && numOk(f.vistas) ? Number(f.vistas) : null, visP: p && numOk(p.vistas) ? Number(p.vistas) : null,
-        int: f ? Number(f.interacciones) || 0 : null, intP: p ? Number(p.interacciones) || 0 : null
+        int: f ? Number(f.interacciones) || 0 : null, intP: p ? Number(p.interacciones) || 0 : null,
+        pub: det.publico || null, pubP: (p && p.detalle && p.detalle.publico) || null,
+        video: det.video || null, videoP: (p && p.detalle && p.detalle.video) || null,
+        vSeg: det.vistasSeg || null, diaV: det.vistasDiarias || null
       };
     });
   var conDatos = ctas.filter(function (c) { return c.f; });
@@ -1972,7 +1970,8 @@ function pintarReporte(d) {
       '<p class="sub">Facebook e Instagram · datos de Meta' + (conDatos.some(function (c) { return c.f.fuente === 'manual'; }) ? ' y captura manual' : '') + '</p></div>' + pestanasResultados() + '</div>' +
     '<div class="rep-ctrl no-print"><label class="l" for="repMes">Mes</label><select id="repMes">' + meses.map(function (m) { return '<option value="' + m + '"' + (m === mes ? ' selected' : '') + '>' + mesLargo(m) + '</option>'; }).join('') + '</select>' +
       '<div class="seg" role="group" aria-label="Página">' + [['ambas', 'Ambas páginas'], ['del', 'Delegación'], ['dto', 'Delegado']].map(function (o) { return '<button data-rpag="' + o[0] + '" aria-pressed="' + (pag === o[0]) + '">' + o[1] + '</button>'; }).join('') + '</div>' +
-      '<button class="btn ghost" id="repPdf">' + ic('download') + 'Descargar PDF</button></div>';
+      '<button class="btn ghost" id="repPdf">' + ic('download') + 'Descargar PDF</button>' +
+      '<button class="btn" id="repXls">' + ic('download') + 'Descargar Excel</button></div>';
 
   if (!conDatos.length) {
     $('#view').innerHTML = cab + '<div class="card"><div class="emptyst"><span class="round">' + ic('chart') + '</span><b>No hay datos de ' + mesLargo(mes) + ' para ' + titPag + '</b><p>Elige otro mes o actualiza las métricas en Configuración.</p></div></div>';
@@ -1986,7 +1985,17 @@ function pintarReporte(d) {
     '<tr><th>Seguidores</th>' + ctas.map(function (c) { return '<td>' + (c.segP !== null ? fmt(c.segP) : '—') + '</td><td><b>' + (c.segA !== null ? fmt(c.segA) : '—') + '</b></td>'; }).join('') + '</tr>' +
     '<tr><th>Crecimiento absoluto</th>' + ctas.map(function (c) { return '<td colspan="2" class="crec' + (c.crec < 0 ? ' neg' : '') + '">' + (c.crec !== null ? (c.crec > 0 ? '+' : '') + fmt(c.crec) : '—') + '</td>'; }).join('') + '</tr>' +
     '<tr><th>Crecimiento porcentual</th>' + ctas.map(function (c) { return '<td colspan="2" class="crec' + (c.crecP < 0 ? ' neg' : '') + '">' + pctTxt(c.crecP) + '</td>'; }).join('') + '</tr>' +
-    '</tbody></table></div>' + parrafos(textoCrecimiento(ctas, mes, ant)) + '</section>';
+    filaPar('Seguidores nuevos', ctas, function (c) { return c.pubP && c.pubP.nuevos; }, function (c) { return c.pub && c.pub.nuevos; }) +
+    filaPar('Dejaron de seguir', ctas, function (c) { return c.pubP && c.pubP.dejaron; }, function (c) { return c.pub && c.pub.dejaron; }) +
+    filaPar('Seguidores netos', ctas, function (c) { return c.pubP && c.pubP.netos; }, function (c) { return c.pub && c.pub.netos; }) +
+    '</tbody></table></div>' + parrafos(textoCrecimiento(ctas, mes, ant).concat(textoPublico(ctas, ant))) +
+    (ctas.some(function (c) { return c.pub && c.pub.diario && c.pub.diario.length; })
+      ? '<h3 class="rep-h3">Seguidores nuevos y personas que dejaron de seguir, por día</h3><div class="rep-grid">' + ctas.filter(function (c) { return c.pub && c.pub.diario && c.pub.diario.length; }).map(function (c) {
+          var ser = [{ nombre: 'Nuevos', color: 'var(--jade)', datos: c.pub.diario.map(function (x) { return { f: x.f, v: x.n }; }) }];
+          if (c.pub.diario.some(function (x) { return x.d !== null && x.d !== undefined; })) ser.push({ nombre: 'Dejaron de seguir', color: 'var(--bad)', datos: c.pub.diario.map(function (x) { return { f: x.f, v: x.d }; }) });
+          return '<div class="rep-cta"><h3>' + iconoRed(c.a) + c.nombre + '</h3>' + lineaSVG(ser) + '</div>';
+        }).join('') + '</div>' : '') +
+    '</section>';
 
   // 2) Alcance y visualizaciones
   var s2 = '<section class="card rep-sec"><h2><span class="num">2</span>Alcance y visualizaciones</h2>' + leyendaMeses(ant, mes) +
@@ -1997,10 +2006,22 @@ function pintarReporte(d) {
       if (numOk(f.visitasPerfil)) dts.push([c.a.red === 'Facebook' ? 'Visitas a la página' : 'Visitas al perfil', fmt(f.visitasPerfil)]);
       if (det.tiempoMin) dts.push(['Tiempo de reproducción', duracionTxt(det.tiempoMin)]);
       if (det.formatos && det.formatos.Historias) dts.push(['Vistas de historias', fmt(det.formatos.Historias.vistas)]);
+      var v = c.video || {}, vp = c.videoP || {};
+      if (numOk(v.v3s)) dts.push(['Reproducciones 3 s', fmt(v.v3s) + (numOk(vp.v3s) && vp.v3s ? ' <small class="' + (v.v3s < vp.v3s ? 'neg' : 'pos') + '">' + pctTxt(pct1(v.v3s, vp.v3s)) + '</small>' : '')]);
+      if (numOk(v.v1m)) dts.push(['Reproducciones 1 min', fmt(v.v1m) + (numOk(vp.v1m) && vp.v1m ? ' <small class="' + (v.v1m < vp.v1m ? 'neg' : 'pos') + '">' + pctTxt(pct1(v.v1m, vp.v1m)) + '</small>' : '')]);
+      if (numOk(v.v3s) && numOk(v.v1m) && v.v3s) dts.push(['Llegan al minuto', (v.v1m / v.v3s * 100).toFixed(1) + '%']);
+      if (numOk(v.promSeg) && v.promSeg) dts.push(['Tiempo promedio visto', Math.round(v.promSeg) + ' s']);
       return '<div class="rep-cta"><h3>' + iconoRed(c.a) + c.nombre + '</h3>' + parBarras(c.visP, c.vis, Math.max(c.vis || 0, c.visP || 0)) +
         '<p class="cambio">' + (c.vis !== null && c.visP ? dl(c.vis, c.visP) + ' vs ' + mesCorto(ant).toLowerCase() : '&nbsp;') + '</p>' +
-        (dts.length ? '<dl class="kv sm">' + dts.map(function (x) { return '<dt>' + x[0] + '</dt><dd>' + x[1] + '</dd>'; }).join('') + '</dl>' : '') + '</div>';
-    }).join('') + '</div>' + parrafos(textoRanking(ctas, 'vis', 'visP', 'visualizaciones', mes, ant)) + '</section>';
+        (dts.length ? '<dl class="kv sm">' + dts.map(function (x) { return '<dt>' + x[0] + '</dt><dd>' + x[1] + '</dd>'; }).join('') + '</dl>' : '') +
+        (c.diaV && c.diaV.length ? '<span class="l">Visualizaciones por día</span>' + lineaSVG([{ nombre: 'Visualizaciones', color: 'var(--vino)', datos: c.diaV }]) : '') + '</div>';
+    }).join('') + '</div>' + parrafos(textoRanking(ctas, 'vis', 'visP', 'visualizaciones', mes, ant).concat(textoVideo(ctas))) +
+    '<details class="adv explica"><summary>¿Cómo leer estas cifras?</summary><ul class="rep-ul">' +
+      '<li><b>Visualizaciones:</b> cuántas veces se mostró el contenido en pantalla (una persona puede contar varias veces).</li>' +
+      '<li><b>Reproducciones de 3 segundos:</b> veces que alguien dejó correr un video al menos 3 segundos; indica que el inicio llamó la atención.</li>' +
+      '<li><b>Reproducciones de 1 minuto:</b> veces que lo vieron un minuto o más; indica que el contenido retuvo a la gente.</li>' +
+      '<li>Si hay muchas de 3 segundos y pocas de 1 minuto, el video <b>engancha al inicio pero la gente se va antes del mensaje</b>: conviene poner lo importante en los primeros segundos, acortar los videos y usar subtítulos.</li>' +
+    '</ul></details></section>';
 
   // 3) Interacciones
   var s3 = '<section class="card rep-sec"><h2><span class="num">3</span>Interacciones <small>(reacciones, comentarios y compartidos)</small></h2>' + leyendaMeses(ant, mes) +
@@ -2024,12 +2045,13 @@ function pintarReporte(d) {
       var barras = function (campo, mx, color) {
         return '<div class="hbars fmtb">' + fs.filter(function (k) { return !(campo === 'interacciones' && k === 'Historias'); }).sort(function (x, y) { return (c.det.formatos[y][campo] || 0) - (c.det.formatos[x][campo] || 0); }).map(function (k) {
           var v = c.det.formatos[k][campo] || 0;
-          return '<div class="hb"><span>' + esc(k) + ' <small>' + c.det.formatos[k].publicaciones + '</small></span><div class="tr"><div class="fl" style="width:' + (v / mx * 100) + '%;background:' + color + '"></div></div><span class="v">' + fmt(v) + '</span></div>';
+          var tot = fs.reduce(function (t, q) { return t + (c.det.formatos[q][campo] || 0); }, 0) || 1;
+          return '<div class="hb"><span>' + esc(k) + ' <small>' + c.det.formatos[k].publicaciones + '</small></span><div class="tr"><div class="fl" style="width:' + (v / mx * 100) + '%;background:' + color + '"></div></div><span class="v">' + fmt(v) + ' <small>' + (v / tot * 100).toFixed(1) + '%</small></span></div>';
         }).join('') + '</div>';
       };
       return '<div class="rep-cta"><h3>' + iconoRed(c.a) + c.nombre + '</h3><div class="fmt2"><div><span class="l">Visualizaciones</span>' + barras('vistas', mv, 'var(--vino)') + '</div>' +
-        '<div><span class="l">Interacciones</span>' + barras('interacciones', mi, 'var(--oro)') + '</div></div></div>';
-    }).join('') + '</div><p class="meta">El número pequeño junto a cada formato es la cantidad de publicaciones.</p>'
+        '<div><span class="l">Interacciones</span>' + barras('interacciones', mi, 'var(--oro)') + '</div></div>' + donaSeguidores(c.vSeg) + '</div>';
+    }).join('') + '</div><p class="meta">El número pequeño junto a cada formato es la cantidad de publicaciones; el porcentaje, su parte del total de la cuenta.</p>' + parrafos(textoFormatos(conFmt))
       : '<p class="meta">Este mes no tiene el detalle por formato (se captura cuando las métricas vienen de Meta).</p>') + '</section>';
 
   // 5) Perfil de la audiencia (Instagram)
@@ -2073,7 +2095,209 @@ function bindReporte(d) {
   var sm = $('#repMes'); if (sm) sm.onchange = function () { S.repMes = sm.value; pintarReporte(d); };
   $$('[data-rpag]').forEach(function (b) { b.onclick = function () { S.repPag = b.dataset.rpag; pintarReporte(d); }; });
   var pdf = $('#repPdf'); if (pdf) pdf.onclick = function () { window.print(); };
+  var xls = $('#repXls'); if (xls) xls.onclick = function () { descargarExcel(d, this); };
 }
+/** Fila de la tabla 1 con mes anterior y mes actual. */
+function filaPar(titulo, ctas, fAnt, fAct) {
+  if (!ctas.some(function (c) { return numOk(fAct(c)) || numOk(fAnt(c)); })) return '';
+  return '<tr><th>' + titulo + '</th>' + ctas.map(function (c) {
+    var a = fAnt(c), b = fAct(c);
+    return '<td>' + (numOk(a) ? fmt(a) : '—') + '</td><td><b>' + (numOk(b) ? fmt(b) : '—') + '</b>' + (numOk(a) && numOk(b) && a ? '<small class="pv-d ' + (b < a ? 'neg' : 'pos') + '">' + pctTxt(pct1(b, a)) + '</small>' : '') + '</td>';
+  }).join('') + '</tr>';
+}
+
+/** Gráfica de líneas por día (una o varias series [{nombre, color, datos:[{f,v}]}]). */
+function lineaSVG(series) {
+  var W = 320, H = 120, L = 44, B = 18, T = 8;
+  var n = Math.max.apply(null, series.map(function (s) { return s.datos.length; }));
+  if (n < 2) return '';
+  var max = Math.max.apply(null, series.map(function (s) { return Math.max.apply(null, s.datos.map(function (x) { return Number(x.v) || 0; })); }).concat([1]));
+  var X = function (i) { return L + i * (W - L - 6) / (n - 1); }, Y = function (v) { return T + (H - T - B) * (1 - (Number(v) || 0) / max); };
+  var lineas = series.map(function (s) {
+    var pts = s.datos.map(function (x, i) { return X(i).toFixed(1) + ',' + Y(x.v).toFixed(1); }).join(' ');
+    return '<polyline fill="none" stroke="' + s.color + '" stroke-width="2" stroke-linejoin="round" points="' + pts + '"/>';
+  }).join('');
+  var d0 = series[0].datos[0].f, d1 = series[0].datos[series[0].datos.length - 1].f;
+  var aria = series.map(function (s) { var t = s.datos.reduce(function (a, x) { return a + (Number(x.v) || 0); }, 0); return s.nombre + ' ' + fmt(t); }).join(', ');
+  return '<figure class="linea"><svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(aria) + '">' +
+    '<line x1="' + L + '" y1="' + Y(max) + '" x2="' + W + '" y2="' + Y(max) + '" class="g"/><line x1="' + L + '" y1="' + Y(0) + '" x2="' + W + '" y2="' + Y(0) + '" class="g"/>' +
+    '<text x="' + (L - 4) + '" y="' + (Y(max) + 4) + '" text-anchor="end">' + fmt(max) + '</text><text x="' + (L - 4) + '" y="' + (Y(0) + 4) + '" text-anchor="end">0</text>' +
+    lineas + '<text x="' + L + '" y="' + (H - 3) + '">' + fCorta(d0) + '</text><text x="' + W + '" y="' + (H - 3) + '" text-anchor="end">' + fCorta(d1) + '</text></svg>' +
+    (series.length > 1 ? '<figcaption>' + series.map(function (s) { return '<span><i style="background:' + s.color + '"></i>' + esc(s.nombre) + '</span>'; }).join('') + '</figcaption>' : '') + '</figure>';
+}
+
+/** Dona de visualizaciones de seguidores contra no seguidores. */
+function donaSeguidores(v) {
+  if (!v || !(Number(v.seg) + Number(v.noSeg))) return '';
+  var t = Number(v.seg) + Number(v.noSeg), ps = Number(v.seg) / t * 100, r = 34, cir = 2 * Math.PI * r;
+  return '<div class="dona-seg"><svg viewBox="0 0 90 90" role="img" aria-label="Seguidores ' + ps.toFixed(1) + '%, no seguidores ' + (100 - ps).toFixed(1) + '%">' +
+    '<circle cx="45" cy="45" r="' + r + '" fill="none" stroke="var(--oro)" stroke-width="14"/>' +
+    '<circle cx="45" cy="45" r="' + r + '" fill="none" stroke="var(--vino)" stroke-width="14" stroke-dasharray="' + (cir * ps / 100) + ' ' + cir + '" transform="rotate(-90 45 45)"/></svg>' +
+    '<div><span class="l">Quién ve el contenido</span><span><i style="background:var(--vino)"></i>Seguidores <b>' + ps.toFixed(1) + '%</b></span><span><i style="background:var(--oro)"></i>No seguidores <b>' + (100 - ps).toFixed(1) + '%</b></span></div></div>';
+}
+
+function textoPublico(ctas, ant) {
+  return ctas.filter(function (c) { return c.pub && numOk(c.pub.nuevos); }).map(function (c) {
+    var p = c.pub, pp = c.pubP, ch = pp && numOk(pp.nuevos) && pp.nuevos ? pct1(p.nuevos, pp.nuevos) : null;
+    var t = '<b>' + c.nombre + '</b> ganó <b>' + fmt(p.nuevos) + ' seguidores nuevos</b>' + (ch !== null ? ' (' + pctTxt(ch) + ' contra ' + mesLargo(ant).toLowerCase() + ')' : '');
+    if (numOk(p.dejaron)) t += ' y <b>' + fmt(p.dejaron) + ' personas dejaron de seguirla</b>, para un saldo neto de ' + fmt(numOk(p.netos) ? p.netos : p.nuevos - p.dejaron);
+    if (numOk(p.dejaron) && p.nuevos) {
+      var r = p.dejaron / p.nuevos * 100;
+      t += r >= 10 ? '. Por cada 100 que llegan se van ' + Math.round(r) + ': conviene revisar qué publicaciones coinciden con los días de más bajas.' : '. Las bajas son pocas frente a lo que se gana.';
+    } else t += '.';
+    return t;
+  });
+}
+function textoVideo(ctas) {
+  return ctas.filter(function (c) { return c.video && numOk(c.video.v3s) && numOk(c.video.v1m) && c.video.v3s; }).map(function (c) {
+    var r = c.video.v1m / c.video.v3s * 100;
+    return '<b>' + c.nombre + ':</b> de cada 100 reproducciones que pasan de 3 segundos, solo <b>' + r.toFixed(1) + '</b> llegan al minuto. ' +
+      (r < 5 ? 'Los videos enganchan al inicio pero casi nadie se queda: el mensaje principal debe ir en los primeros 5 a 10 segundos y conviene hacerlos más cortos.'
+        : r < 15 ? 'La retención es baja: ayudan los videos de menos de un minuto, subtítulos y un arranque directo.'
+        : 'La retención es buena: el contenido sostiene la atención.');
+  });
+}
+function textoFormatos(conFmt) {
+  var out = [];
+  conFmt.forEach(function (c) {
+    var f = c.det.formatos, ks = Object.keys(f), tot = ks.reduce(function (t, k) { return t + (f[k].vistas || 0); }, 0);
+    if (!tot) return;
+    var top = ks.sort(function (a, b) { return (f[b].vistas || 0) - (f[a].vistas || 0); })[0];
+    var t = '<b>' + c.nombre + ':</b> el formato más visto fue <b>' + top.toLowerCase() + '</b> (' + ((f[top].vistas || 0) / tot * 100).toFixed(1) + '% de las visualizaciones)';
+    if (c.vSeg && (Number(c.vSeg.seg) + Number(c.vSeg.noSeg))) {
+      var pn = Number(c.vSeg.noSeg) / (Number(c.vSeg.seg) + Number(c.vSeg.noSeg)) * 100;
+      t += '. El <b>' + pn.toFixed(1) + '%</b> de lo visto viene de personas que <b>no siguen</b> la cuenta' +
+        (pn >= 70 ? ': el contenido llega lejos, pero hay que convertir a esas personas en seguidores (invitar a seguir en el texto y al final del video, responder comentarios, publicar con constancia).' : '.');
+    } else t += '.';
+    out.push(t);
+  });
+  return out;
+}
+
+/* ---------- Excel del reporte (tablas con datos concretos) ---------- */
+function cargarXlsx() {
+  if (window.XLSX && window.XLSX.utils) return Promise.resolve(window.XLSX);
+  return new Promise(function (ok, mal) {
+    var sc = document.createElement('script');
+    sc.src = 'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js';
+    sc.onload = function () { ok(window.XLSX); };
+    sc.onerror = function () { mal(new Error('No se pudo cargar el generador de Excel. Revisa tu internet.')); };
+    document.head.appendChild(sc);
+  });
+}
+function descargarExcel(d, btn) {
+  btn.disabled = true;
+  cargarXlsx().then(function (X) {
+    var mes = S.repMes, ant = mesAnt(mes), pag = S.repPag || 'ambas';
+    var fila = function (m, k) { return d.filas.filter(function (f) { return f.mes === m && f.cuenta === k; })[0] || null; };
+    var cuentas = CUENTAS.filter(function (a) { return pag === 'ambas' || (pag === 'del' ? a.pagina === 'Delegación' : a.pagina === 'Delegado'); });
+    var num = function (v) { return numOk(v) ? Number(v) : ''; };
+    var pc = function (a, b) { return numOk(a) && numOk(b) && Number(b) ? (Number(a) - Number(b)) / Number(b) : ''; };
+    var wb = X.utils.book_new();
+    var hoja = function (nombre, titulo, enc, filas, anchos, formatos) {
+      var aoa = [[titulo], [], enc].concat(filas);
+      var ws = X.utils.aoa_to_sheet(aoa);
+      ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: Math.max(enc.length - 1, 0) } }];
+      ws['!cols'] = enc.map(function (h, i) { return { wch: (anchos && anchos[i]) || Math.max(12, String(h).length + 2) }; });
+      var borde = { style: 'thin', color: { rgb: 'D9CFCC' } };
+      var caja = { top: borde, bottom: borde, left: borde, right: borde };
+      if (ws.A1) ws.A1.s = { font: { bold: true, sz: 14, color: { rgb: '7B1E3A' } } };
+      enc.forEach(function (h, c) {
+        var ref = X.utils.encode_cell({ r: 2, c: c });
+        if (ws[ref]) ws[ref].s = { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '7B1E3A' } }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: caja };
+      });
+      filas.forEach(function (f, r) {
+        f.forEach(function (v, c) {
+          var ref = X.utils.encode_cell({ r: r + 3, c: c });
+          if (!ws[ref]) return;
+          var st = { border: caja, alignment: { vertical: 'top', wrapText: typeof v === 'string' && v.length > 30 } };
+          if (r % 2) st.fill = { fgColor: { rgb: 'FBF7F6' } };
+          if (formatos && formatos[c] && typeof v === 'number') ws[ref].z = formatos[c];
+          else if (typeof v === 'number') ws[ref].z = '#,##0';
+          if (c === 0) st.font = { bold: true };
+          ws[ref].s = st;
+        });
+      });
+      ws['!rows'] = [{ hpt: 22 }, {}, { hpt: 32 }];
+      X.utils.book_append_sheet(wb, ws, nombre);
+    };
+    var titulo = 'Análisis de redes sociales · ' + mesLargo(mes) + ' vs ' + mesLargo(ant);
+    // 1. Resumen
+    var res = cuentas.map(function (a) {
+      var f = fila(mes, a.k) || {}, p = fila(ant, a.k) || {}, det = f.detalle || {}, dp = p.detalle || {};
+      var pub = det.publico || {}, v = det.video || {};
+      return [a.red + ' ' + a.pagina, num(p.seguidores), num(f.seguidores), numOk(f.seguidores) && numOk(p.seguidores) ? f.seguidores - p.seguidores : '', pc(f.seguidores, p.seguidores),
+        num(pub.nuevos), num(pub.dejaron), num(pub.netos),
+        num(p.vistas), num(f.vistas), pc(f.vistas, p.vistas), num(f.alcance), num(f.visitasPerfil),
+        num(v.v3s), num(v.v1m), numOk(v.v3s) && numOk(v.v1m) && v.v3s ? v.v1m / v.v3s : '',
+        num(p.interacciones), num(f.interacciones), pc(f.interacciones, p.interacciones),
+        num(f.reacciones), num(f.comentarios), num(f.compartidos), num(f.publicaciones)];
+    });
+    hoja('Resumen', titulo, ['Cuenta', 'Seguidores ' + mesCorto(ant), 'Seguidores ' + mesCorto(mes), 'Crecimiento', 'Crecimiento %', 'Seguidores nuevos', 'Dejaron de seguir', 'Seguidores netos',
+      'Visualizaciones ' + mesCorto(ant), 'Visualizaciones ' + mesCorto(mes), 'Cambio %', 'Alcance', 'Visitas al perfil', 'Reproducciones 3 s', 'Reproducciones 1 min', 'Llegan al minuto',
+      'Interacciones ' + mesCorto(ant), 'Interacciones ' + mesCorto(mes), 'Cambio %', 'Reacciones / me gusta', 'Comentarios', 'Compartidos', 'Publicaciones'], res,
+      [22], { 4: '0.0%', 10: '0.0%', 15: '0.0%', 18: '0.0%' });
+    // 2. Formatos
+    var ff = [];
+    cuentas.forEach(function (a) {
+      var det = (fila(mes, a.k) || {}).detalle || {}, fm = det.formatos || {};
+      var tv = Object.keys(fm).reduce(function (t, k) { return t + (fm[k].vistas || 0); }, 0);
+      Object.keys(fm).sort(function (x, y) { return (fm[y].vistas || 0) - (fm[x].vistas || 0); }).forEach(function (k) {
+        ff.push([a.red + ' ' + a.pagina, k, fm[k].publicaciones || 0, fm[k].vistas || 0, tv ? (fm[k].vistas || 0) / tv : '', fm[k].interacciones || 0]);
+      });
+      var vs = det.vistasSeg;
+      if (vs && (Number(vs.seg) + Number(vs.noSeg))) ff.push([a.red + ' ' + a.pagina, 'Visto por seguidores / no seguidores', '', '', Number(vs.seg) / (Number(vs.seg) + Number(vs.noSeg)), '']);
+    });
+    hoja('Por formato', 'Visualizaciones e interacciones por tipo de contenido · ' + mesLargo(mes), ['Cuenta', 'Formato', 'Publicaciones', 'Visualizaciones', '% de visualizaciones', 'Interacciones'], ff, [22, 34], { 4: '0.0%' });
+    // 3. Por día
+    var dias = {}, cols = [];
+    cuentas.forEach(function (a) {
+      var det = (fila(mes, a.k) || {}).detalle || {}, nom = a.red + ' ' + a.pagina;
+      var pub = det.publico || {};
+      if (pub.diario && pub.diario.length) {
+        cols.push([nom + ' · nuevos', 'n'], [nom + ' · dejaron', 'd']);
+        pub.diario.forEach(function (x) { var o = dias[x.f] || (dias[x.f] = {}); o[nom + ' · nuevos'] = x.n; o[nom + ' · dejaron'] = x.d; });
+      }
+      if (det.vistasDiarias && det.vistasDiarias.length) {
+        cols.push([nom + ' · visualizaciones', 'v']);
+        det.vistasDiarias.forEach(function (x) { (dias[x.f] || (dias[x.f] = {}))[nom + ' · visualizaciones'] = x.v; });
+      }
+    });
+    if (cols.length) hoja('Por día', 'Seguidores y visualizaciones por día · ' + mesLargo(mes), ['Fecha'].concat(cols.map(function (c) { return c[0]; })),
+      Object.keys(dias).sort().map(function (f) { return [f].concat(cols.map(function (c) { return num(dias[f][c[0]]); })); }), [12]);
+    // 4. Mejores publicaciones
+    var mp = [];
+    cuentas.forEach(function (a) {
+      var det = (fila(mes, a.k) || {}).detalle || {};
+      (det.mejores || []).forEach(function (p, i) { mp.push([a.red + ' ' + a.pagina, i + 1, p.fecha, p.formato, p.texto || '', num(p.vistas), num(p.interacciones), num(p.reacciones), num(p.comentarios), num(p.compartidos), p.link || '']); });
+    });
+    if (mp.length) hoja('Mejores publicaciones', 'Mejores publicaciones · ' + mesLargo(mes), ['Cuenta', '#', 'Fecha', 'Formato', 'Texto', 'Visualizaciones', 'Interacciones', 'Reacciones', 'Comentarios', 'Compartidos', 'Link'], mp, [22, 4, 11, 13, 50, 14, 13, 11, 12, 12, 40]);
+    // 5. Audiencia
+    var au = [];
+    cuentas.forEach(function (a) {
+      var det = (fila(mes, a.k) || {}).detalle || {}, x = det.audiencia;
+      if (!x) return;
+      var te = Object.keys(x.edad || {}).reduce(function (t, k) { return t + x.edad[k]; }, 0) || 1;
+      Object.keys(x.edad || {}).sort().forEach(function (k) { au.push([a.red + ' ' + a.pagina, 'Edad ' + k, x.edad[k], x.edad[k] / te]); });
+      var ts = Object.keys(x.sexo || {}).reduce(function (t, k) { return t + x.sexo[k]; }, 0) || 1;
+      Object.keys(x.sexo || {}).forEach(function (k) { au.push([a.red + ' ' + a.pagina, k === 'F' ? 'Mujeres' : k === 'M' ? 'Hombres' : 'Sin especificar', x.sexo[k], x.sexo[k] / ts]); });
+    });
+    if (au.length) hoja('Audiencia', 'Perfil de la audiencia (Instagram) · ' + mesLargo(mes), ['Cuenta', 'Grupo', 'Seguidores', '%'], au, [22, 18], { 3: '0.0%' });
+    // 6. Análisis
+    var txt = function (h) { var e = document.createElement('div'); e.innerHTML = h; return e.textContent; };
+    var an = [];
+    $$('.rep-sec').forEach(function (sec) {
+      var h = sec.querySelector('h2'); if (!h) return;
+      var tt = txt(h.innerHTML).replace(/^\d+/, '').trim();
+      sec.querySelectorAll('.rep-txt p, .rep-ul li').forEach(function (p) { if (!p.closest('.explica')) an.push([tt, txt(p.innerHTML)]); });
+    });
+    if (an.length) hoja('Análisis', 'Análisis y conclusiones · ' + mesLargo(mes), ['Sección', 'Texto'], an, [28, 110]);
+    var nombre = 'Reporte redes ' + mesLargo(mes) + (pag === 'ambas' ? '' : pag === 'del' ? ' Delegacion' : ' Delegado') + '.xlsx';
+    X.writeFile(wb, nombre.normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
+    toast('Excel descargado');
+  }).catch(function (e) { toast(e.message); }).then(function () { btn.disabled = false; });
+}
+
 function parrafos(xs) { xs = xs.filter(Boolean); return xs.length ? '<div class="rep-txt">' + xs.map(function (t) { return '<p>' + t + '</p>'; }).join('') + '</div>' : ''; }
 function vinetas(xs) { xs = xs.filter(Boolean); return xs.length ? '<ul class="rep-ul">' + xs.map(function (t) { return '<li>' + t + '</li>'; }).join('') + '</ul>' : '<p class="meta">Sin datos suficientes este mes.</p>'; }
 
@@ -2283,7 +2507,52 @@ function mConfig(seq) {
   });
 }
 var CAMPOS_MAN = [['reacciones', 'Reacciones / me gusta'], ['comentarios', 'Comentarios'], ['compartidos', 'Compartidos'], ['publicaciones', 'Publicaciones'],
-  ['seguidores', 'Seguidores (total al cierre)'], ['vistas', 'Visualizaciones'], ['alcance', 'Alcance / espectadores'], ['visitasPerfil', 'Visitas al perfil o página']];
+  ['seguidores', 'Seguidores (total al cierre)'], ['vistas', 'Visualizaciones'], ['alcance', 'Alcance / espectadores'], ['visitasPerfil', 'Visitas al perfil o página'],
+  ['nuevosSeg', 'Seguidores nuevos'], ['dejaronSeg', 'Dejaron de seguir'], ['v3s', 'Reproducciones de 3 segundos'], ['v1m', 'Reproducciones de 1 minuto'],
+  ['pctNoSeg', '% visto por no seguidores', 100]];
+function tarjetaInstagramDirecto(c) {
+  var e = (c.meta && c.meta.igDirecto) || {};
+  var fila = function (k, nom) {
+    var x = e[k] || {};
+    return '<div><span class="tag ' + (x.activo ? 'ok' : 'warn') + '">' + (x.activo ? 'Conectado' : 'Sin conexión directa') + '</span><span><b>Instagram ' + nom + '</b>' +
+      (x.activo ? ' · @' + esc(x.usuario) + (x.renovado ? ' · token renovado el ' + fCorta(x.renovado) : '') + ' <button type="button" class="btn sm ghost" data-igquitar="' + k + '">Quitar</button>' : '') + '</span></div>';
+  };
+  return '<div class="meta-wiz"><h3>Instagram sin vincular a Facebook</h3>' +
+    '<p class="meta txt">Si el Instagram no se puede ligar a la página (por ejemplo, porque no tienen al dueño de la página), conéctalo directo con el usuario y contraseña de Instagram. Se mide igual y el token se renueva solo cada semana.</p>' +
+    '<div class="reslist">' + fila('igDel', 'Delegación') + fila('igDto', 'Delegado') + '</div>' +
+    '<div class="form"><div><label class="l" for="igCta">Cuenta</label><select id="igCta"><option value="igDel">Instagram Delegación</option><option value="igDto">Instagram Delegado</option></select></div>' +
+    '<div><label class="l" for="igTok">Token de Instagram</label><input type="password" id="igTok" autocomplete="off" placeholder="Empieza con IG…"></div></div>' +
+    '<div class="actions"><button class="btn" id="igGo">' + ic('link') + 'Conectar Instagram</button></div><p class="status" id="igMsg" aria-live="polite"></p>' +
+    '<details class="adv"><summary>Cómo sacar el token de Instagram</summary><ol class="meta txt pasos">' +
+      '<li>Entra a <b>developers.facebook.com</b> → <b>Mis apps</b> → tu app.</li>' +
+      '<li>En el menú, <b>Agregar producto</b> (o <b>Casos de uso</b>) → <b>Instagram</b> → <b>Configurar</b>.</li>' +
+      '<li>Abre <b>Configuración de la API con inicio de sesión con Instagram</b>.</li>' +
+      '<li>En <b>Generar tokens de acceso</b> pulsa <b>Agregar cuenta</b> y entra con el usuario y contraseña del Instagram de la Delegación. Acepta los permisos <b>instagram_business_basic</b> e <b>instagram_business_manage_insights</b>.</li>' +
+      '<li>Si pide agregar la cuenta como <b>evaluador de Instagram</b>: en <b>Roles de la app → Roles</b> agrega el usuario de Instagram, y luego en Instagram (app) → <b>Configuración → Apps y sitios web → Invitaciones de evaluador</b> acéptala.</li>' +
+      '<li>Pulsa <b>Generar token</b>, cópialo completo y pégalo aquí.</li>' +
+      '<li>La cuenta de Instagram debe ser <b>profesional</b> (Empresa o Creador).</li></ol></details></div>';
+}
+function tarjetaWhatsappCfg(c) {
+  var w = c.whatsapp || {}, g = w.guia || {}, listo = w.phoneId && w.tieneToken;
+  var copia = function (txt, lbl) { return '<div class="wa-copia"><pre>' + esc(txt) + '</pre><button type="button" class="btn sm ghost" data-copiar="' + esc(txt) + '">' + ic('copy') + (lbl || 'Copiar') + '</button></div>'; };
+  return '<div class="card wa-cfg"><h2>WhatsApp (oficial de Meta)</h2>' +
+    '<p class="meta txt">Los avisos salen del número de WhatsApp de la Delegación. Meta cobra cada aviso enviado (unos 0.015 USD en México). Cada persona pone su número en <i>Mi cuenta</i>.</p>' +
+    (listo ? '<p class="meta ok-line">' + ic('check', 'i ic-sm') + ' Conectado · plantilla <b>' + esc(w.plantilla) + '</b> (' + esc(w.idioma) + ')</p>' : '') +
+    '<div><label class="l" for="waPid">Identificador del número de teléfono</label><input type="text" inputmode="numeric" id="waPid" autocomplete="off" placeholder="Ej. 123456789012345" value="' + esc(w.phoneId || '') + '"></div>' +
+    '<div><label class="l" for="waTok">Token permanente (usuario del sistema)</label><input type="password" id="waTok" autocomplete="off" placeholder="' + (w.tieneToken ? 'Guardado · escribe otro para reemplazarlo' : 'Empieza con EAA…') + '"></div>' +
+    '<div class="form"><div><label class="l" for="waPl">Nombre de la plantilla</label><input type="text" id="waPl" value="' + esc(w.plantilla || 'aviso_bienestar') + '"></div>' +
+    '<div><label class="l" for="waId">Idioma</label><input type="text" id="waId" value="' + esc(w.idioma || 'es_MX') + '"></div></div>' +
+    '<label class="chk" style="width:fit-content"><input type="checkbox" id="waBt"' + (w.boton !== false ? ' checked' : '') + '>La plantilla tiene botón "Abrir Bienestar Conecta"</label>' +
+    '<div class="actions"><button class="btn" id="waCfgSave">' + ic('save') + 'Guardar</button>' + (listo ? '<button class="btn ghost" id="waCfgTest">Enviarme una prueba</button><button class="btn ghost" id="waCfgDel">Desconectar</button>' : '') + '</div>' +
+    '<p class="status" id="waCfgMsg" aria-live="polite"></p>' +
+    '<details class="adv"><summary>Plantilla para crear en WhatsApp Manager</summary>' +
+      '<p class="meta txt">Nombre <b>' + esc(g.nombre || 'aviso_bienestar') + '</b> · Categoría <b>Utilidad</b> · Idioma <b>Español (MEX)</b>.</p>' +
+      '<span class="l">Cuerpo</span>' + copia(g.cuerpo || '') +
+      '<p class="meta txt">Ejemplo para {{1}}: ' + esc(g.ejemplo1 || '') + '<br>Ejemplo para {{2}}: ' + esc(g.ejemplo2 || '') + '</p>' +
+      '<span class="l">Botón: Visitar sitio web · texto "Abrir Bienestar Conecta" · tipo Dinámico</span>' + copia(g.url || '', 'Copiar URL') +
+      '<p class="meta txt">Ejemplo de URL: ' + esc(g.ejemploUrl || '') + '</p>' +
+    '</details></div>';
+}
 function pintarConfig(c) {
   var mesActual = today().slice(0, 7);
   var nombreCuenta = function (k) { var a = CUENTAS.filter(function (x) { return x.k === k; })[0]; return a.red + ' ' + a.pagina; };
@@ -2302,6 +2571,8 @@ function pintarConfig(c) {
         '<p class="status" id="osMsg" aria-live="polite"></p>' +
         (c.appUrl ? '' : '<p class="meta">Guarda también el link de la app (más abajo) para que la notificación abra la app al tocarla.</p>') + '</div>' +
 
+      tarjetaWhatsappCfg(c) +
+
       '<div class="card"><h2>Inteligencia artificial</h2><p class="meta">Opcional. Con una clave de Gemini (Google AI Studio) la IA redacta la línea del tema. Sin clave, el mensaje se arma con el tema tal cual.</p>' +
         '<div><label class="l" for="gKey">Clave de Gemini</label><input type="password" id="gKey" autocomplete="off" placeholder="' + (c.gemini.tieneClave ? 'Guardada · escribe otra para reemplazarla' : 'Pega la clave aquí') + '"></div>' +
         '<div><label class="l" for="gMod">Modelo</label><input type="text" id="gMod" value="' + esc(c.gemini.modelo) + '"></div>' +
@@ -2314,6 +2585,7 @@ function pintarConfig(c) {
           '<div class="full"><label class="l" for="wTok">Token del Explorador de la API Graph</label><input type="password" id="wTok" autocomplete="off" placeholder="Empieza con EAA… (dura 1 hora)"></div></div>' +
           '<div class="actions"><button class="btn" id="wGo">' + ic('link') + 'Conectar y buscar mis páginas</button></div>' +
           '<div id="wPaso2"></div><p class="status" id="wMsg" aria-live="polite"></p></div>' +
+        tarjetaInstagramDirecto(c) +
         '<details class="adv"><summary>Datos actuales y captura manual de IDs</summary>' +
         '<p class="meta">IDs numéricos de cada página de Facebook y de su cuenta de Instagram profesional, y el token de cada página. El asistente los llena solo.</p>' +
         '<div class="form">' +
@@ -2327,12 +2599,12 @@ function pintarConfig(c) {
         '<div class="reslist" id="mRes"></div>' +
         '<div style="border-top:1px solid var(--line);padding-top:14px" class="stack"><h3>Actualizar métricas ahora</h3><div class="actions"><input type="month" id="mMes" value="' + mesActual + '" style="width:auto"><button class="btn dark" id="mRun">' + ic('refresh') + 'Actualizar</button></div><div class="reslist" id="mRun2"></div></div></div>' +
 
-      '<div class="card"><h2>Capturar métricas a mano</h2><p class="meta">Para meses sin conexión con Meta. Si ya existe ese mes y cuenta, se reemplaza.</p>' +
+      '<div class="card"><h2>Capturar métricas a mano</h2><p class="meta">Para meses sin conexión con Meta, o para completar lo que Meta no entrega (como las reproducciones de 1 minuto). Solo se cambia lo que escribas; lo que dejes vacío se conserva.</p>' +
         '<form class="form" id="fMan" novalidate>' +
           '<div><label class="l" for="manMes">Mes</label><input type="month" id="manMes" value="' + mesActual + '"></div>' +
           '<div><label class="l" for="manCta">Cuenta</label><select id="manCta">' + CUENTAS.map(function (a) { return '<option value="' + a.k + '">' + nombreCuenta(a.k) + '</option>'; }).join('') + '</select></div>' +
           CAMPOS_MAN.map(function (f) {
-            return '<div><label class="l" for="man-' + f[0] + '">' + f[1] + '</label><input type="number" min="0" inputmode="numeric" id="man-' + f[0] + '"></div>';
+            return '<div><label class="l" for="man-' + f[0] + '">' + f[1] + '</label><input type="number" min="0"' + (f[2] ? ' max="' + f[2] + '" step="0.1" inputmode="decimal"' : ' inputmode="numeric"') + ' id="man-' + f[0] + '"></div>';
           }).join('') +
           '<div class="full"><button class="btn" type="submit">' + ic('save') + 'Guardar cifras</button><p class="status" id="manMsg"></p></div></form></div>' +
 
@@ -2374,6 +2646,17 @@ function pintarConfig(c) {
       .catch(function (e) { $('#osMsg').textContent = e.message; $('#osMsg').className = 'status err'; }).then(function () { b.disabled = false; });
   };
   var od = $('#osDel'); if (od) od.onclick = function () { guardarCfg({ onesignalApp: '', onesignalKey: 'BORRAR' }, 'OneSignal desconectado'); };
+  $('#waCfgSave').onclick = function () {
+    guardarCfg({ waPhoneId: $('#waPid').value.trim(), waToken: $('#waTok').value.trim(), waPlantilla: $('#waPl').value.trim(), waIdioma: $('#waId').value.trim(), waBoton: $('#waBt').checked }, 'WhatsApp guardado');
+  };
+  var wt = $('#waCfgTest'); if (wt) wt.onclick = function () {
+    var b = this, m = $('#waCfgMsg'); b.disabled = true; m.className = 'status'; m.textContent = 'Enviando a tu número de Mi cuenta…';
+    call('probarWhatsapp').then(function () { m.textContent = 'Enviada: revisa tu WhatsApp en unos segundos.'; })
+      .catch(function (e) { m.className = 'status err'; m.textContent = e.message + (/Primero guarda tu número/.test(e.message) ? ' (en Mi cuenta → Avisos por WhatsApp)' : ''); })
+      .then(function () { b.disabled = false; });
+  };
+  var wd = $('#waCfgDel'); if (wd) wd.onclick = function () { guardarCfg({ waPhoneId: '', waToken: 'BORRAR' }, 'WhatsApp desconectado'); };
+  $$('[data-copiar]').forEach(function (b) { b.onclick = function () { copiar(b.dataset.copiar, null, null); }; });
   // Asistente de conexión con Meta
   var wMsg = function (t, err) { var m = $('#wMsg'); m.textContent = t; m.className = 'status' + (err ? ' err' : ''); };
   $('#wGo').onclick = function () {
@@ -2401,6 +2684,17 @@ function pintarConfig(c) {
       };
     }).catch(function (e) { wMsg(e.message, true); }).then(function () { b.disabled = false; });
   };
+  // Instagram directo
+  $('#igGo').onclick = function () {
+    var b = this, m = $('#igMsg'), tok = $('#igTok').value.trim();
+    if (!tok) { m.className = 'status err'; m.textContent = 'Pega el token de Instagram.'; return; }
+    b.disabled = true; m.className = 'status'; m.textContent = 'Revisando con Instagram…';
+    call('conectarInstagram', { cuenta: $('#igCta').value, token: tok }).then(function (nc) { toast('Instagram conectado'); pintarConfig(nc); })
+      .catch(function (e) { m.className = 'status err'; m.textContent = e.message; b.disabled = false; });
+  };
+  $$('[data-igquitar]').forEach(function (b) {
+    b.onclick = function () { call('conectarInstagram', { cuenta: b.dataset.igquitar, quitar: true }).then(function (nc) { toast('Conexión de Instagram quitada'); pintarConfig(nc); }).catch(function (e) { toast(e.message); }); };
+  });
   $('#mSave').onclick = function () {
     var cuentas = {}; CUENTAS.forEach(function (a) { cuentas[a.k] = $('#mid-' + a.k).value.trim(); });
     guardarCfg({ cuentas: cuentas, tokenDel: $('#tDel').value.trim(), tokenDto: $('#tDto').value.trim(), metaVersion: $('#mVer').value.trim() });
