@@ -746,3 +746,5 @@ small.pos{color:var(--jade)}
 .rep-cta .kv{grid-template-columns:minmax(0,1fr) auto;gap:6px 10px}
 .rep-cta .kv dd{text-align:right;white-space:nowrap;font-weight:600}
 .rep-cta .kv dd small{display:block;font-weight:600}
+.rep-t.temas td.ej{font-size:12.5px;color:var(--muted);font-style:italic;text-align:left;min-width:260px}
+.rep-t.temas td{text-align:center}
