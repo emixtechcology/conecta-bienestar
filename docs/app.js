@@ -165,7 +165,7 @@ function apiLista() { return /^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/
 function call(accion, datos) {
   if (!apiLista()) return Promise.reject(new Error('Falta configurar el servidor: pega la URL de Apps Script en config.js.'));
   var control = 'AbortController' in window ? new AbortController() : null;
-  var limite = setTimeout(function () { if (control) control.abort(); }, accion === 'subirParte' || accion === 'actualizarMetricas' ? 300000 : 60000);
+  var limite = setTimeout(function () { if (control) control.abort(); }, accion === 'subirParte' || accion === 'actualizarMetricas' ? 370000 : 60000);
   return fetch(API_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -1960,7 +1960,7 @@ function pintarReporte(d) {
         int: f ? Number(f.interacciones) || 0 : null, intP: p ? Number(p.interacciones) || 0 : null,
         pub: det.publico || null, pubP: (p && p.detalle && p.detalle.publico) || null,
         video: det.video || null, videoP: (p && p.detalle && p.detalle.video) || null,
-        vSeg: det.vistasSeg || null, diaV: det.vistasDiarias || null
+        vSeg: det.vistasSeg || null, diaV: det.vistasDiarias || null, conv: det.conversacion || null
       };
     });
   var conDatos = ctas.filter(function (c) { return c.f; });
@@ -2035,9 +2035,37 @@ function pintarReporte(d) {
         (dts.length ? '<dl class="kv sm">' + dts.map(function (x) { return '<dt>' + x[0] + '</dt><dd>' + x[1] + '</dd>'; }).join('') + '</dl>' : '') + '</div>';
     }).join('') + '</div>' + parrafos(textoRanking(ctas, 'int', 'intP', 'interacciones', mes, ant)) + '</section>';
 
-  // 4) Desempeño por formato
+  // 4) Atención a la ciudadanía: comentarios y mensajes
+  var conConv = ctas.filter(function (c) { return c.conv; });
+  var temasAll = {};
+  conConv.forEach(function (c) {
+    [c.conv.comentarios, c.conv.mensajes].forEach(function (x) {
+      (x && x.temas && x.temas.temas || []).forEach(function (t) {
+        var y = temasAll[t.t] || (temasAll[t.t] = { t: t.t, n: 0, preg: 0, ej: [] });
+        y.n += t.n; y.preg += t.preg; (t.ej || []).forEach(function (e) { if (y.ej.length < 2 && y.ej.indexOf(e) < 0) y.ej.push(e); });
+      });
+    });
+  });
+  var tlist = Object.keys(temasAll).map(function (k) { return temasAll[k]; }).sort(function (a, b) { return (b.preg - a.preg) || (b.n - a.n); });
+  var pctR = function (a, b) { return b ? Math.round(a / b * 100) + '%' : '—'; };
+  var s4b = '<section class="card rep-sec"><h2><span class="num">4</span>Atención a la ciudadanía <small>(comentarios y mensajes)</small></h2>' +
+    (conConv.length ? '<div class="rep-grid">' + conConv.map(function (c) {
+      var cm = c.conv.comentarios, ms = c.conv.mensajes, dts = [];
+      if (cm) dts.push(['Comentarios del público', fmt(cm.recibidos)], ['Respondidos', fmt(cm.respondidos) + ' <small>' + pctR(cm.respondidos, cm.recibidos) + '</small>'], ['Preguntas en comentarios', fmt(cm.temas ? cm.temas.preguntas : 0)]);
+      if (cm && numOk(cm.tiempoMin)) dts.push(['Respuesta típica', pdfMinTxt(cm.tiempoMin)]);
+      if (ms) dts.push(['Conversaciones privadas', fmt(ms.conversaciones)], ['Contestadas', fmt(ms.respondidas) + ' <small>' + pctR(ms.respondidas, ms.conversaciones) + '</small>'], ['Mensajes recibidos', fmt(ms.recibidos)]);
+      if (ms && numOk(ms.tiempoMin)) dts.push(['Respuesta típica (privado)', pdfMinTxt(ms.tiempoMin)]);
+      return '<div class="rep-cta"><h3>' + iconoRed(c.a) + c.nombre + '</h3>' + (dts.length ? '<dl class="kv sm">' + dts.map(function (x) { return '<dt>' + x[0] + '</dt><dd>' + x[1] + '</dd>'; }).join('') + '</dl>' : '') +
+        ((c.conv.avisos || []).length ? '<p class="meta" style="color:var(--bad)">Falta permiso: ' + c.conv.avisos.map(function (x) { return esc(x.replace(/:.*\(permiso /, ': ').replace(/\)$/, '')); }).join(' · ') + '</p>' : '') + '</div>';
+    }).join('') + '</div>' +
+      (tlist.length ? '<h3 class="rep-h3">Lo que más pregunta la gente</h3><div class="tbl"><table class="rep-t temas"><thead><tr><th>Tema</th><th>Mensajes</th><th>Preguntas</th><th>Ejemplos</th></tr></thead><tbody>' +
+        tlist.slice(0, 10).map(function (t) { return '<tr><th>' + esc(t.t) + '</th><td>' + fmt(t.n) + '</td><td><b>' + fmt(t.preg) + '</b></td><td class="ej">' + (t.ej.length ? t.ej.map(function (e) { return '“' + esc(e) + '”'; }).join('<br>') : '—') + '</td></tr>'; }).join('') + '</tbody></table></div>' +
+        '<p class="meta">Suma de comentarios y mensajes privados de las cuentas mostradas. Los ejemplos se muestran sin nombres ni teléfonos.</p>' : '')
+      : '<p class="meta">Aún no hay lectura de comentarios y mensajes para este mes. En Configuración → Actualizar métricas ahora se capturan junto con las cifras.</p>') + '</section>';
+
+  // 5) Desempeño por formato
   var conFmt = ctas.filter(function (c) { return c.det.formatos && Object.keys(c.det.formatos).length; });
-  var s4 = '<section class="card rep-sec"><h2><span class="num">4</span>Desempeño por formato</h2>' +
+  var s4 = '<section class="card rep-sec"><h2><span class="num">5</span>Desempeño por formato</h2>' +
     (conFmt.length ? '<div class="rep-grid fmt">' + conFmt.map(function (c) {
       var fs = Object.keys(c.det.formatos).sort(function (x, y) { return FMT_ORDEN.indexOf(x) - FMT_ORDEN.indexOf(y); });
       var mv = Math.max.apply(null, fs.map(function (k) { return c.det.formatos[k].vistas || 0; }).concat([1]));
@@ -2062,21 +2090,21 @@ function pintarReporte(d) {
     Object.keys(au.edad || {}).forEach(function (k) { edad[k] = (edad[k] || 0) + au.edad[k]; });
     Object.keys(au.sexo || {}).forEach(function (k) { sexo[k] = (sexo[k] || 0) + au.sexo[k]; });
   });
-  var s5 = '<section class="card rep-sec"><h2><span class="num">5</span>Perfil de la audiencia</h2>' +
+  var s5 = '<section class="card rep-sec"><h2><span class="num">6</span>Perfil de la audiencia</h2>' +
     (conAud.length ? audienciaHtml(edad, sexo) + '<p class="meta">Seguidores de ' + listaY(conAud) + '. Meta solo entrega edad y sexo de Instagram (con 100 seguidores o más).</p>'
       : '<p class="meta">Meta entrega la edad y el sexo de los seguidores solo de cuentas de Instagram con 100 seguidores o más. Aparecerá aquí cuando esté disponible.</p>') + '</section>';
 
   // 6) Contenido de mayor desempeño y comportamiento por plataforma
-  var s6 = '<section class="card rep-sec"><h2><span class="num">6</span>Contenido de mayor desempeño</h2>' + vinetas(textoContenido(ctas)) +
+  var s6 = '<section class="card rep-sec"><h2><span class="num">7</span>Contenido de mayor desempeño</h2>' + vinetas(textoContenido(ctas)) +
     '<h3 class="rep-h3">Comportamiento por plataforma</h3>' + vinetas(textoPlataformas(ctas, ant)) + '</section>';
 
   // 7) Análisis del periodo  8) Conclusiones
-  var s7 = '<section class="card rep-sec"><h2><span class="num">7</span>Análisis del periodo</h2>' + vinetas(textoAnalisis(ctas, pag, mes, ant)) + '</section>' +
-    '<section class="card rep-sec"><h2><span class="num">8</span>Conclusiones</h2>' + parrafos([textoConclusion(ctas, pag, mes, ant)]) + '</section>';
+  var s7 = '<section class="card rep-sec"><h2><span class="num">8</span>Análisis del periodo</h2>' + vinetas(textoAnalisis(ctas, pag, mes, ant)) + '</section>' +
+    '<section class="card rep-sec"><h2><span class="num">9</span>Conclusiones</h2>' + parrafos([textoConclusion(ctas, pag, mes, ant)]) + '</section>';
 
   // 9) Mejores publicaciones
   var conTop = ctas.filter(function (c) { return c.det.mejores && c.det.mejores.length; });
-  var s9 = '<section class="card rep-sec"><h2><span class="num">9</span>Mejores publicaciones</h2>' +
+  var s9 = '<section class="card rep-sec"><h2><span class="num">10</span>Mejores publicaciones</h2>' +
     (conTop.length ? '<div class="rep-grid tops2">' + conTop.map(function (c) {
       return '<div><h3 class="rep-h3">' + iconoRed(c.a) + c.nombre + '</h3><div class="tops">' + c.det.mejores.slice(0, 5).map(function (p, i) {
         return '<a class="tpub" href="' + esc(p.link || '#') + '" target="_blank" rel="noopener"><span class="pos">' + (i + 1) + '</span>' +
@@ -2087,14 +2115,14 @@ function pintarReporte(d) {
       }).join('') + '</div></div>';
     }).join('') + '</div>' : '<p class="meta">Las mejores publicaciones aparecen cuando las métricas vienen de Meta.</p>') + '</section>';
 
-  $('#view').innerHTML = cab + s1 + s2 + s3 + s4 + s5 + s6 + s7 + s9;
+  $('#view').innerHTML = cab + s1 + s2 + s3 + s4b + s4 + s5 + s6 + s7 + s9;
   bindReporte(d);
 }
 function bindReporte(d) {
   bindPestanas(d);
   var sm = $('#repMes'); if (sm) sm.onchange = function () { S.repMes = sm.value; pintarReporte(d); };
   $$('[data-rpag]').forEach(function (b) { b.onclick = function () { S.repPag = b.dataset.rpag; pintarReporte(d); }; });
-  var pdf = $('#repPdf'); if (pdf) pdf.onclick = function () { window.print(); };
+  var pdf = $('#repPdf'); if (pdf) pdf.onclick = function () { imprimirInforme(d, this); };
   var xls = $('#repXls'); if (xls) xls.onclick = function () { descargarExcel(d, this); };
 }
 /** Fila de la tabla 1 con mes anterior y mes actual. */
@@ -2172,6 +2200,396 @@ function textoFormatos(conFmt) {
     out.push(t);
   });
   return out;
+}
+
+/* =========================================================
+   Informe imprimible (PDF): documento propio, pensado para hoja carta.
+   Cada página (Delegación / Delegado) tiene su capítulo y cada red su bloque completo.
+   ========================================================= */
+var PDF_EXPLICADO = false;
+var PDF_C = { vino: '#7B1E3A', vinoS: '#F6E4E9', oro: '#B98A4E', oroS: '#F6EBDC', jade: '#1F7A5C', jadeS: '#DDF0E7', bad: '#A1203F', ink: '#2B1A20', muted: '#6F6468', line: '#E6DCDA', sunk: '#F7F3F2' };
+
+/** Datos de cada cuenta listos para el informe (mes elegido y mes anterior). */
+function modeloCuentas(d, mes, pag) {
+  var ant = mesAnt(mes);
+  var fila = function (m, k) { return d.filas.filter(function (f) { return f.mes === m && f.cuenta === k; })[0] || null; };
+  return CUENTAS.filter(function (a) { return pag === 'ambas' || (pag === 'del' ? a.pagina === 'Delegación' : a.pagina === 'Delegado'); }).map(function (a) {
+    var f = fila(mes, a.k), p = fila(ant, a.k), det = (f && f.detalle) || {}, detP = (p && p.detalle) || {};
+    var n = function (o, k) { return o && numOk(o[k]) ? Number(o[k]) : null; };
+    var segA = n(f, 'seguidores'), segP = n(p, 'seguidores');
+    return {
+      a: a, f: f, p: p, det: det, detP: detP, nombre: nomCta(a), ig: a.red === 'Instagram',
+      usuario: det.usuario || det.nombre || '',
+      segA: segA, segP: segP, crec: segA !== null && segP !== null ? segA - segP : null, crecP: segA !== null && segP ? pct1(segA, segP) : null,
+      vis: n(f, 'vistas'), visP: n(p, 'vistas'), alc: n(f, 'alcance'), alcP: n(p, 'alcance'), vp: n(f, 'visitasPerfil'), vpP: n(p, 'visitasPerfil'),
+      int: f ? Number(f.interacciones) || 0 : null, intP: p ? Number(p.interacciones) || 0 : null,
+      pub: det.publico || null, pubP: detP.publico || null, video: det.video || null, videoP: detP.video || null,
+      vSeg: det.vistasSeg || null, diaV: det.vistasDiarias || null, conv: det.conversacion || null, convP: detP.conversacion || null
+    };
+  });
+}
+
+function pdfNum(v, suf) { return numOk(v) ? fmt(v) + (suf || '') : '—'; }
+function pdfPct(v, dec) { return numOk(v) ? Number(v).toFixed(dec === undefined ? 1 : dec) + '%' : '—'; }
+function pdfCambio(a, b) {
+  if (!numOk(a) || !numOk(b) || !Number(b)) return '<td class="c">—</td>';
+  var v = pct1(Number(a), Number(b));
+  return '<td class="c ' + (v < 0 ? 'neg' : v > 0 ? 'pos' : '') + '">' + pctTxt(v) + '</td>';
+}
+function pdfMinTxt(min) {
+  if (!numOk(min)) return '—';
+  min = Number(min);
+  if (min < 1) return Math.max(1, Math.round(min * 60)) + ' s';
+  if (min < 60) return Math.round(min) + ' min';
+  if (min < 1440) return Math.floor(min / 60) + ' h ' + Math.round(min % 60) + ' min';
+  return duracionTxt(Math.round(min));
+}
+/** Tabla Indicador | mes anterior | mes | cambio. filas: [nombre, ant, act, formato?, nota?] */
+function pdfTablaComp(filas, ant, mes) {
+  filas = filas.filter(function (x) { return numOk(x[1]) || numOk(x[2]) || (x[3] === 'txt' && (x[1] || x[2])); });
+  if (!filas.length) return '';
+  return '<table class="t"><thead><tr><th>Indicador</th><th class="c">' + mesCorto(ant) + '</th><th class="c">' + mesCorto(mes) + '</th><th class="c">Cambio</th></tr></thead><tbody>' +
+    filas.map(function (x) {
+      var f = x[3] === 'pct' ? function (v) { return pdfPct(v); } : x[3] === 'txt' ? function (v) { return v || '—'; } : x[3] === 'min' ? pdfMinTxt : function (v) { return pdfNum(v); };
+      return '<tr><th>' + x[0] + (x[4] ? '<small>' + x[4] + '</small>' : '') + '</th><td class="c">' + f(x[1]) + '</td><td class="c"><b>' + f(x[2]) + '</b></td>' +
+        (x[3] === 'pct' || x[3] === 'txt' ? '<td class="c">' + (numOk(x[1]) && numOk(x[2]) ? (x[2] - x[1] > 0 ? '+' : '') + (x[2] - x[1]).toFixed(1) + ' pts' : '—') + '</td>' : pdfCambio(x[2], x[1])) + '</tr>';
+    }).join('') + '</tbody></table>';
+}
+/** Gráfica de líneas para impresión (colores fijos, letras legibles). */
+function pdfLinea(series, titulo) {
+  series = series.filter(function (s) { return s.datos && s.datos.length > 1; });
+  if (!series.length) return '';
+  var W = 640, H = 170, L = 52, R = 10, T = 12, B = 26;
+  var n = Math.max.apply(null, series.map(function (s) { return s.datos.length; }));
+  var max = Math.max.apply(null, series.map(function (s) { return Math.max.apply(null, s.datos.map(function (x) { return Number(x.v) || 0; })); }).concat([1]));
+  var X = function (i) { return L + i * (W - L - R) / (n - 1); }, Y = function (v) { return T + (H - T - B) * (1 - (Number(v) || 0) / max); };
+  var grid = [0, .5, 1].map(function (k) { var y = Y(max * k); return '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y + '" y2="' + y + '" stroke="#E6DCDA"/><text x="' + (L - 6) + '" y="' + (y + 3.5) + '" text-anchor="end">' + fmt(max * k) + '</text>'; }).join('');
+  var d0 = series[0].datos[0].f, d1 = series[0].datos[series[0].datos.length - 1].f, mid = series[0].datos[Math.floor((series[0].datos.length - 1) / 2)].f;
+  var lineas = series.map(function (s) {
+    return '<polyline fill="none" stroke="' + s.color + '" stroke-width="2.2" stroke-linejoin="round" points="' + s.datos.map(function (x, i) { return X(i).toFixed(1) + ',' + Y(x.v).toFixed(1); }).join(' ') + '"/>';
+  }).join('');
+  var pico = series[0].datos.reduce(function (m, x) { return (Number(x.v) || 0) > (Number(m.v) || 0) ? x : m; }, series[0].datos[0]);
+  return '<figure class="g"><figcaption><b>' + titulo + '</b>' + series.map(function (s) { var t = s.datos.reduce(function (a, x) { return a + (Number(x.v) || 0); }, 0); return '<span><i style="background:' + s.color + '"></i>' + s.nombre + ': ' + fmt(t) + '</span>'; }).join('') + '</figcaption>' +
+    '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img">' + grid + lineas +
+    '<text x="' + L + '" y="' + (H - 6) + '">' + fCorta(d0) + '</text><text x="' + X(Math.floor((n - 1) / 2)) + '" y="' + (H - 6) + '" text-anchor="middle">' + fCorta(mid) + '</text><text x="' + (W - R) + '" y="' + (H - 6) + '" text-anchor="end">' + fCorta(d1) + '</text></svg>' +
+    '<p class="nota">Día con el valor más alto: <b>' + fCorta(pico.f) + '</b> (' + fmt(pico.v) + '). Revisen qué se publicó ese día: es el tipo de contenido que más funciona.</p></figure>';
+}
+/** Barra horizontal de dos partes (por ejemplo seguidores / no seguidores). */
+function pdfBarra2(a, b, la, lb) {
+  var t = (Number(a) || 0) + (Number(b) || 0); if (!t) return '';
+  var pa = a / t * 100;
+  return '<div class="b2"><div class="b2t"><span style="width:' + pa + '%;background:' + PDF_C.vino + '"></span><span style="width:' + (100 - pa) + '%;background:' + PDF_C.oro + '"></span></div>' +
+    '<div class="b2l"><span><i style="background:' + PDF_C.vino + '"></i>' + la + ' <b>' + pa.toFixed(1) + '%</b></span><span><i style="background:' + PDF_C.oro + '"></i>' + lb + ' <b>' + (100 - pa).toFixed(1) + '%</b></span></div></div>';
+}
+function pdfBloque(titulo, cuerpo, cls) { return cuerpo ? '<section class="blk ' + (cls || '') + '"><h3>' + titulo + '</h3>' + cuerpo + '</section>' : ''; }
+function pdfTxt(xs) { xs = (xs || []).filter(Boolean); return xs.length ? '<div class="txt">' + xs.map(function (t) { return '<p>' + t + '</p>'; }).join('') + '</div>' : ''; }
+function pdfCaja(titulo, xs) { xs = (xs || []).filter(Boolean); return xs.length ? '<div class="caja"><b>' + titulo + '</b><ul>' + xs.map(function (t) { return '<li>' + t + '</li>'; }).join('') + '</ul></div>' : ''; }
+
+/* ---- Bloques por cuenta ---- */
+function pdfAudiencia(c, ant, mes) {
+  var pub = c.pub || {}, pp = c.pubP || {};
+  var tabla = pdfTablaComp([
+    ['Seguidores al cierre del mes', c.segP, c.segA],
+    ['Seguidores nuevos', pp.nuevos, pub.nuevos],
+    ['Dejaron de seguir', pp.dejaron, pub.dejaron],
+    ['Seguidores netos (nuevos − bajas)', pp.netos, pub.netos],
+    [c.ig ? 'Visitas al perfil' : 'Visitas a la página', c.vpP, c.vp]
+  ], ant, mes);
+  var t = [];
+  if (c.crec !== null) t.push('La cuenta ' + (c.crec >= 0 ? 'creció' : 'bajó') + ' <b>' + fmt(Math.abs(c.crec)) + ' seguidores</b> (' + pctTxt(c.crecP) + ') y cerró con ' + fmt(c.segA) + '.');
+  if (numOk(pub.nuevos)) {
+    var s = 'Llegaron <b>' + fmt(pub.nuevos) + ' seguidores nuevos</b>' + (numOk(pp.nuevos) && pp.nuevos ? ' (' + pctTxt(pct1(pub.nuevos, pp.nuevos)) + ' contra ' + mesCorto(ant).toLowerCase() + ')' : '');
+    if (numOk(pub.dejaron)) {
+      var r = pub.nuevos ? pub.dejaron / pub.nuevos * 100 : 0;
+      s += ' y <b>' + fmt(pub.dejaron) + ' personas dejaron de seguirla</b>. Por cada 100 que llegan se van ' + Math.round(r) + (r >= 15 ? ': es alto; revisen los días con más bajas (gráfica) y qué se publicó.' : r >= 6 ? ': es normal, pero vale vigilarlo.' : ': la cuenta retiene bien a su comunidad.');
+    } else s += '.';
+    t.push(s);
+  }
+  if (numOk(c.vp) && numOk(c.segA) && c.vp) t.push('Hubo ' + fmt(c.vp) + ' visitas ' + (c.ig ? 'al perfil' : 'a la página') + '. Cuando las visitas son muchas más que los seguidores nuevos, la gente entra a curiosear pero no se queda: ayuda tener la portada, la biografía y las publicaciones fijadas actualizadas.');
+  var dia = c.pub && c.pub.diario && c.pub.diario.length > 1 ? c.pub.diario : null;
+  var ser = dia ? [{ nombre: 'Nuevos', color: PDF_C.jade, datos: dia.map(function (x) { return { f: x.f, v: x.n }; }) }] : [];
+  if (dia && dia.some(function (x) { return x.d !== null && x.d !== undefined; })) ser.push({ nombre: 'Dejaron de seguir', color: PDF_C.bad, datos: dia.map(function (x) { return { f: x.f, v: x.d }; }) });
+  return pdfBloque('1. Comunidad y seguidores', tabla + pdfTxt(t) + (ser.length ? pdfLinea(ser, 'Seguidores nuevos y bajas por día') : ''));
+}
+function pdfAlcance(c, ant, mes) {
+  var hist = c.det.formatos && c.det.formatos.Historias, histP = c.detP.formatos && c.detP.formatos.Historias;
+  var noSeg = c.vSeg && (c.vSeg.seg + c.vSeg.noSeg) ? c.vSeg.noSeg / (c.vSeg.seg + c.vSeg.noSeg) * 100 : null;
+  var noSegP = c.detP.vistasSeg && (c.detP.vistasSeg.seg + c.detP.vistasSeg.noSeg) ? c.detP.vistasSeg.noSeg / (c.detP.vistasSeg.seg + c.detP.vistasSeg.noSeg) * 100 : null;
+  var tabla = pdfTablaComp([
+    ['Visualizaciones', c.visP, c.vis, '', 'veces que se mostró el contenido'],
+    [c.ig ? 'Cuentas alcanzadas' : 'Espectadores', c.alcP, c.alc, '', c.ig ? 'personas distintas' : 'personas distintas, últimos 28 días'],
+    ['Vistas de historias', histP && histP.vistas, hist && hist.vistas],
+    ['Visto por no seguidores', noSegP, noSeg, 'pct']
+  ], ant, mes);
+  var t = [];
+  if (c.vis !== null) t.push('El contenido se mostró <b>' + fmt(c.vis) + ' veces</b>' + (c.visP ? ' (' + pctTxt(pct1(c.vis, c.visP)) + ' contra ' + mesCorto(ant).toLowerCase() + ')' : '') + (c.alc ? ' a unas <b>' + fmt(c.alc) + ' personas distintas</b>; en promedio cada persona lo vio ' + (c.vis / c.alc).toFixed(1) + ' veces' : '') + '.');
+  if (noSeg !== null) t.push('El <b>' + noSeg.toFixed(1) + '%</b> de lo visto lo vieron personas que <b>no siguen</b> la cuenta. ' + (noSeg >= 70 ? 'El contenido llega muy lejos (lo recomienda Facebook/Instagram o lo comparten), pero esas personas no se están quedando: hay que invitarlas a seguir en el texto y al final de los videos, y responder sus comentarios.' : noSeg >= 40 ? 'Hay buen equilibrio entre comunidad propia y alcance nuevo.' : 'Lo ve sobre todo la comunidad que ya sigue la cuenta; para crecer conviene contenido más compartible (reels cortos, temas útiles, fechas de pago).'));
+  var seg = c.vSeg ? pdfBarra2(c.vSeg.seg, c.vSeg.noSeg, 'Seguidores', 'No seguidores') : '';
+  return pdfBloque('2. Alcance y visualizaciones', tabla + seg + pdfTxt(t) + (c.diaV && c.diaV.length > 1 ? pdfLinea([{ nombre: 'Visualizaciones', color: PDF_C.vino, datos: c.diaV }], 'Visualizaciones por día') : ''));
+}
+function pdfVideo(c, ant, mes) {
+  var v = c.video || {}, vp = c.videoP || {}, tm = c.det.tiempoMin, tmP = c.detP.tiempoMin;
+  var ret = numOk(v.v3s) && numOk(v.v1m) && v.v3s ? v.v1m / v.v3s * 100 : null, retP = numOk(vp.v3s) && numOk(vp.v1m) && vp.v3s ? vp.v1m / vp.v3s * 100 : null;
+  var porRep = numOk(tm) && numOk(v.v3s) && v.v3s ? tm * 60 / v.v3s : null;
+  var vids = c.det.formatos ? ['Reels', 'Videos'].reduce(function (s, k) { return s + ((c.det.formatos[k] && c.det.formatos[k].publicaciones) || 0); }, 0) : 0;
+  if (!numOk(tm) && !numOk(v.v3s) && !numOk(v.promSeg) && !vids) return '';
+  var tabla = pdfTablaComp([
+    ['Videos y reels publicados', null, vids || null],
+    ['Tiempo total de reproducción', tmP, tm, 'min', 'suma de todo lo que se vio de los videos'],
+    ['Reproducciones de 3 segundos', vp.v3s, v.v3s, '', 'veces que alguien vio al menos 3 s'],
+    ['Reproducciones de 1 minuto', vp.v1m, v.v1m, '', 'veces que alguien vio 1 minuto o más'],
+    ['Llegan al minuto', retP, ret, 'pct', 'de cada 100 que empiezan'],
+    ['Tiempo promedio visto por video', vp.promSeg, v.promSeg, 'txt'].map(function (x, i) { return i === 1 || i === 2 ? (numOk(x) ? Math.round(x) + ' s' : x) : x; })
+  ], ant, mes);
+  var t = [];
+  if (numOk(tm)) t.push('Las personas pasaron en total <b>' + duracionTxt(tm) + '</b> viendo los videos de la cuenta' + (numOk(tmP) && tmP ? ' (' + pctTxt(pct1(tm, tmP)) + ' contra ' + mesCorto(ant).toLowerCase() + ')' : '') + '. ' + (porRep ? 'Si se reparte entre las reproducciones, cada una duró en promedio <b>' + Math.round(porRep) + ' segundos</b>.' : ''));
+  if (ret !== null) t.push('De cada 100 personas que dejaron correr un video al menos 3 segundos, <b>' + ret.toFixed(1) + '</b> lo vieron un minuto o más. ' + (ret < 5 ? 'Esto quiere decir que <b>el inicio llama la atención, pero la gente se va antes de llegar al mensaje</b>.' : ret < 15 ? 'La retención es baja: muchos se van antes del minuto.' : 'La retención es buena: los videos sostienen la atención.'));
+  if (numOk(v.promSeg)) t.push('En promedio, cada persona vio <b>' + Math.round(v.promSeg) + ' segundos</b> de cada video. ' + (v.promSeg < 10 ? 'Todo lo importante (programa, fecha, lugar, requisito) debe decirse en los primeros 5 a 8 segundos.' : v.promSeg < 20 ? 'Conviene que los videos duren entre 20 y 40 segundos y que el dato clave esté al inicio.' : 'Los videos sostienen bien la atención; se pueden aprovechar para explicar trámites paso a paso.'));
+  var yaExplicado = PDF_EXPLICADO; PDF_EXPLICADO = true;
+  return pdfBloque('3. Videos y tiempo de reproducción', tabla + pdfTxt(t) + (yaExplicado ? '<p class="nota">La explicación de cada cifra de video está en el primer capítulo y en el glosario.</p>' : pdfCaja('Cómo leer estas cifras: ¿por qué la gente empieza los videos y no los termina?', [
+    '<b>Tiempo de reproducción</b>: la suma de todos los segundos que la gente vio de los videos. Sube cuando se publican más videos o cuando la gente los ve más tiempo.',
+    '<b>Reproducción de 3 segundos</b>: alguien se detuvo a ver el video. Mide qué tan atractivo es el inicio (la primera imagen y la primera frase).',
+    '<b>Reproducción de 1 minuto</b>: alguien se quedó a ver el contenido. Mide si el mensaje interesa.',
+    '<b>Por qué la gente empieza y no termina</b>: en el celular se decide en 2 o 3 segundos; si el video tarda en decir de qué trata, tiene música larga al inicio, cortinillas o planos de presentación, la persona se va. Por eso hay muchas reproducciones de 3 s y pocas de 1 minuto.',
+    '<b>Qué hacer</b>: arrancar con la noticia o el beneficio ("Ya inició el pago de…"), subtítulos siempre (la mayoría ve sin sonido), videos de 20 a 40 segundos, un solo mensaje por video y cerrar invitando a seguir la página.'
+  ])));
+}
+function pdfInteracciones(c, ant, mes) {
+  var f = c.f || {}, p = c.p || {}, dg = c.det, dgP = c.detP;
+  var pubs = numOk(f.publicaciones) ? Number(f.publicaciones) : null, pubsP = numOk(p.publicaciones) ? Number(p.publicaciones) : null;
+  var tasa = c.vis && c.int !== null ? c.int / c.vis * 100 : null, tasaP = c.visP && c.intP !== null ? c.intP / c.visP * 100 : null;
+  var tabla = pdfTablaComp([
+    ['Publicaciones', pubsP, pubs],
+    [c.ig ? 'Me gusta' : 'Reacciones', p.reacciones, f.reacciones],
+    ['Comentarios', p.comentarios, f.comentarios],
+    ['Compartidos', p.compartidos, f.compartidos],
+    ['Guardados', dgP.guardados, dg.guardados],
+    ['Interacciones totales', c.intP, c.int],
+    ['Interacciones por publicación', pubsP ? c.intP / pubsP : null, pubs ? c.int / pubs : null],
+    ['Tasa de interacción', tasaP, tasa, 'pct', 'interacciones ÷ visualizaciones']
+  ].map(function (x) { return x; }), ant, mes);
+  var t = [];
+  if (c.int !== null) t.push('Hubo <b>' + fmt(c.int) + ' interacciones</b>' + (c.intP ? ' (' + pctTxt(pct1(c.int, c.intP)) + ' contra ' + mesCorto(ant).toLowerCase() + ')' : '') + (pubs ? ', <b>' + fmt(c.int / pubs) + ' por publicación</b>' : '') + '.');
+  if (pubs && pubsP && c.intP && c.int < c.intP && pubs > pubsP) t.push('Se publicó más que el mes pasado pero hubo menos interacción: publicar más no basta, conviene menos piezas y mejor pensadas.');
+  if (tasa !== null) t.push('La tasa de interacción fue de <b>' + tasa.toFixed(2) + '%</b>: de cada 1,000 veces que se vio el contenido, ' + Math.round(tasa * 10) + ' terminaron en una reacción, comentario o compartido. ' + (tasa < 1 ? 'Es baja: ayudan las preguntas directas, los datos útiles y responder comentarios.' : tasa < 3 ? 'Es un nivel aceptable.' : 'Es un buen nivel de participación.'));
+  if (numOk(f.compartidos) && c.int) t.push('Los compartidos son el ' + (f.compartidos / c.int * 100).toFixed(1) + '% de las interacciones. Compartir es la señal más valiosa: significa que la información le sirve a la gente para alguien más.');
+  return pdfBloque('4. Interacciones', tabla + pdfTxt(t));
+}
+function pdfFormatos(c) {
+  var f = c.det.formatos; if (!f || !Object.keys(f).length) return '';
+  var ks = Object.keys(f).sort(function (a, b) { return (f[b].vistas || 0) - (f[a].vistas || 0); });
+  var tv = ks.reduce(function (s, k) { return s + (f[k].vistas || 0); }, 0) || 1, ti = ks.reduce(function (s, k) { return s + (f[k].interacciones || 0); }, 0) || 1;
+  var tabla = '<table class="t"><thead><tr><th>Formato</th><th class="c">Publ.</th><th class="c">Visualizaciones</th><th class="c">% vistas</th><th class="c">Interacciones</th><th class="c">% inter.</th><th class="c">Vistas por publ.</th></tr></thead><tbody>' +
+    ks.map(function (k) {
+      var x = f[k];
+      return '<tr><th>' + esc(k) + '</th><td class="c">' + fmt(x.publicaciones) + '</td><td class="c">' + fmt(x.vistas) + '</td><td class="c"><span class="mini"><i style="width:' + ((x.vistas || 0) / tv * 100) + '%"></i></span>' + ((x.vistas || 0) / tv * 100).toFixed(1) + '%</td>' +
+        '<td class="c">' + fmt(x.interacciones) + '</td><td class="c">' + ((x.interacciones || 0) / ti * 100).toFixed(1) + '%</td><td class="c"><b>' + (x.publicaciones ? fmt((x.vistas || 0) / x.publicaciones) : '—') + '</b></td></tr>';
+    }).join('') + '</tbody></table>';
+  var conPub = ks.filter(function (k) { return f[k].publicaciones && k !== 'Historias'; });
+  var efic = conPub.slice().sort(function (a, b) { return f[b].vistas / f[b].publicaciones - f[a].vistas / f[a].publicaciones; })[0];
+  var mucho = conPub.slice().sort(function (a, b) { return f[b].publicaciones - f[a].publicaciones; })[0];
+  var t = ['El formato con más visualizaciones fue <b>' + ks[0].toLowerCase() + '</b> (' + ((f[ks[0]].vistas || 0) / tv * 100).toFixed(1) + '% del total).'];
+  if (efic) t.push('El más eficiente fue <b>' + efic.toLowerCase() + '</b>: cada publicación logró en promedio ' + fmt(f[efic].vistas / f[efic].publicaciones) + ' visualizaciones.');
+  if (mucho && efic && mucho !== efic) t.push('El formato que más se publicó fue ' + mucho.toLowerCase() + ' (' + fmt(f[mucho].publicaciones) + '), pero rinde menos por pieza que ' + efic.toLowerCase() + '. Conviene mover parte de esa producción hacia ' + efic.toLowerCase() + '.');
+  return pdfBloque('5. Desempeño por tipo de contenido', tabla + pdfTxt(t));
+}
+function pdfTemas(tm, titulo) {
+  if (!tm || !tm.temas || !tm.temas.length) return '';
+  return '<table class="t temas"><thead><tr><th>' + titulo + '</th><th class="c">Mensajes</th><th class="c">Preguntas</th><th>Ejemplo de lo que preguntan</th></tr></thead><tbody>' +
+    tm.temas.map(function (x) { return '<tr><th>' + esc(x.t) + '</th><td class="c">' + fmt(x.n) + '</td><td class="c">' + fmt(x.preg) + '</td><td class="ej">' + (x.ej && x.ej.length ? x.ej.map(function (e) { return '“' + esc(e) + '”'; }).join('<br>') : '—') + '</td></tr>'; }).join('') + '</tbody></table>';
+}
+function pdfAtencion(c, ant, mes) {
+  var cv = c.conv, cp = c.convP || {};
+  if (!cv) return pdfBloque('6. Atención a la ciudadanía (mensajes y comentarios)', '<p class="nota">Este mes aún no tiene la lectura de mensajes y comentarios. En Configuración → Actualizar métricas ahora se capturan junto con las cifras.</p>');
+  var cm = cv.comentarios, ms = cv.mensajes, cmP = cp.comentarios || {}, msP = cp.mensajes || {};
+  var pc = function (o) { return o && o.recibidos ? o.respondidos / o.recibidos * 100 : null; }, pm = function (o) { return o && o.conversaciones ? o.respondidas / o.conversaciones * 100 : null; };
+  var filas = [];
+  if (cm) filas.push(['Comentarios del público', cmP.recibidos, cm.recibidos], ['Comentarios respondidos por la cuenta', cmP.respondidos, cm.respondidos], ['% de comentarios respondidos', pc(cmP), pc(cm), 'pct'], ['Tiempo típico de respuesta a comentarios', cmP.tiempoMin, cm.tiempoMin, 'min']);
+  if (ms) filas.push(['Conversaciones por mensaje privado', msP.conversaciones, ms.conversaciones], ['Conversaciones contestadas', msP.respondidas, ms.respondidas], ['% de conversaciones contestadas', pm(msP), pm(ms), 'pct'], ['Mensajes recibidos', msP.recibidos, ms.recibidos], ['Mensajes enviados por la cuenta', msP.enviados, ms.enviados], ['Tiempo típico de respuesta a mensajes', msP.tiempoMin, ms.tiempoMin, 'min']);
+  var t = [];
+  if (cm && cm.recibidos) t.push('Llegaron <b>' + fmt(cm.recibidos) + ' comentarios</b> y la cuenta respondió <b>' + fmt(cm.respondidos) + '</b> (' + pdfPct(pc(cm)) + ')' + (numOk(cm.tiempoMin) ? ', normalmente en ' + pdfMinTxt(cm.tiempoMin) : '') + '. ' + (cm.temas && cm.temas.preguntas ? '<b>' + fmt(cm.temas.preguntas) + '</b> de esos comentarios eran preguntas.' : ''));
+  if (ms && ms.conversaciones) t.push('Por mensaje privado escribieron <b>' + fmt(ms.conversaciones) + ' personas</b> (' + fmt(ms.recibidos) + ' mensajes) y se les contestó a <b>' + fmt(ms.respondidas) + '</b> (' + pdfPct(pm(ms)) + ')' + (numOk(ms.tiempoMin) ? '; la respuesta tardó normalmente ' + pdfMinTxt(ms.tiempoMin) : '') + '.' + (ms.limite ? ' (Se leyeron las 500 conversaciones más recientes.)' : ''));
+  var top = [];
+  [cm && cm.temas, ms && ms.temas].forEach(function (tm) { (tm && tm.temas || []).forEach(function (x) { if (x.t !== 'Otros temas' && x.t !== 'Agradecimientos y felicitaciones') { var y = top.filter(function (z) { return z.t === x.t; })[0]; if (y) y.n += x.preg; else top.push({ t: x.t, n: x.preg }); } }); });
+  top.sort(function (a, b) { return b.n - a.n; });
+  if (top.length && top[0].n) t.push('Lo que <b>más preguntan</b>: ' + listaY(top.slice(0, 3).filter(function (x) { return x.n; }).map(function (x) { return '<b>' + x.t.toLowerCase() + '</b> (' + fmt(x.n) + ')'; })) + '. Conviene publicar una pieza fija o un mensaje automático que responda esas dudas.');
+  var sinResp = (cm ? cm.recibidos - cm.respondidos : 0);
+  var rec = [];
+  if (pc(cm) !== null && pc(cm) < 30) rec.push('Responder más comentarios, sobre todo las preguntas: Facebook e Instagram muestran más el contenido de cuentas que conversan, y una respuesta pública sirve a todos los que tienen la misma duda.' + (sinResp > 0 ? ' Quedaron ' + fmt(sinResp) + ' comentarios sin respuesta.' : ''));
+  if (pm(ms) !== null && pm(ms) < 80) rec.push('Contestar todos los mensajes privados y activar respuestas automáticas con los teléfonos y ligas oficiales (pensiones, becas, vivienda).');
+  if (numOk(ms && ms.tiempoMin) && ms.tiempoMin > 240) rec.push('Bajar el tiempo de respuesta a menos de 4 horas en horario laboral; las personas suelen escribir cerca de las fechas de pago.');
+  var avisos = (cv.avisos || []).length ? '<p class="nota aviso">No se pudo leer: ' + cv.avisos.map(esc).join(' · ') + '. Se agrega ese permiso en la app de Meta y se vuelve a generar el token.</p>' : '';
+  return pdfBloque('6. Atención a la ciudadanía (mensajes y comentarios)', pdfTablaComp(filas, ant, mes) + pdfTxt(t) +
+    pdfTemas(cm && cm.temas, 'Temas en comentarios') + pdfTemas(ms && ms.temas, 'Temas en mensajes privados') + pdfCaja('Recomendaciones de atención', rec) + avisos +
+    '<p class="nota">Los temas se reconocen por palabras clave (pensión, beca, folio, pago, tarjeta…). Los ejemplos se muestran sin nombres ni teléfonos.</p>');
+}
+function pdfAudienciaDemo(c) {
+  var au = c.det.audiencia; if (!au) return '';
+  var e = au.edad || {}, s = au.sexo || {}, ks = Object.keys(e).sort(function (a, b) { return e[b] - e[a]; }), te = ks.reduce(function (x, k) { return x + e[k]; }, 0) || 1;
+  var ts = (s.M || 0) + (s.F || 0) + (s.U || 0);
+  var tabla = '<table class="t"><thead><tr><th>Edad</th><th class="c">% de seguidores</th></tr></thead><tbody>' + ks.map(function (k) { return '<tr><th>' + esc(k) + ' años</th><td class="c"><span class="mini"><i style="width:' + (e[k] / te * 100) + '%;background:' + PDF_C.jade + '"></i></span>' + (e[k] / te * 100).toFixed(1) + '%</td></tr>'; }).join('') + '</tbody></table>';
+  var t = [];
+  if (ks.length) t.push('El grupo de edad más grande es <b>' + ks[0] + ' años</b> (' + (e[ks[0]] / te * 100).toFixed(0) + '%)' + (ks[1] ? ', seguido de ' + ks[1] + ' (' + (e[ks[1]] / te * 100).toFixed(0) + '%)' : '') + '.');
+  if (ts) t.push('Mujeres <b>' + Math.round((s.F || 0) / ts * 100) + '%</b> y hombres <b>' + Math.round((s.M || 0) / ts * 100) + '%</b>.');
+  return pdfBloque('7. ¿Quién sigue la cuenta?', tabla + (ts ? pdfBarra2(s.F || 0, (s.M || 0) + (s.U || 0), 'Mujeres', 'Hombres y sin especificar') : '') + pdfTxt(t));
+}
+function pdfMejores(c) {
+  var m = c.det.mejores; if (!m || !m.length) return '';
+  return pdfBloque('8. Publicaciones con mejor resultado', '<table class="t top"><thead><tr><th class="c">#</th><th>Publicación</th><th class="c">Formato</th><th class="c">Fecha</th><th class="c">Interacciones</th><th class="c">Visualizaciones</th></tr></thead><tbody>' +
+    m.slice(0, 8).map(function (p, i) {
+      return '<tr><td class="c"><b>' + (i + 1) + '</b></td><td>' + (p.link ? '<a href="' + esc(p.link) + '">' : '') + esc(p.texto || 'Sin texto') + (p.link ? '</a>' : '') + '</td><td class="c">' + esc(p.formato) + '</td><td class="c">' + fCorta(p.fecha) + '</td><td class="c"><b>' + fmt(p.interacciones) + '</b></td><td class="c">' + pdfNum(p.vistas) + '</td></tr>';
+    }).join('') + '</tbody></table><p class="nota">Ordenadas por interacciones. Los temas de estas publicaciones son los que más conectan: conviene repetir su enfoque.</p>');
+}
+function pdfRecomendaciones(c) {
+  var r = [], v = c.video || {}, f = c.det.formatos || {};
+  var ret = numOk(v.v3s) && numOk(v.v1m) && v.v3s ? v.v1m / v.v3s * 100 : null;
+  var noSeg = c.vSeg && (c.vSeg.seg + c.vSeg.noSeg) ? c.vSeg.noSeg / (c.vSeg.seg + c.vSeg.noSeg) * 100 : null;
+  if (ret !== null && ret < 10) r.push('Videos: decir lo importante en los primeros segundos, subtítulos siempre y duración de 20 a 40 segundos.');
+  if (noSeg !== null && noSeg >= 70) r.push('Convertir a quienes ya ven el contenido en seguidores: invitar a seguir en cada publicación y responder comentarios.');
+  if (c.pub && numOk(c.pub.dejaron) && c.pub.nuevos && c.pub.dejaron / c.pub.nuevos > .15) r.push('Revisar los días con más bajas de seguidores y evitar saturar con muchas publicaciones seguidas del mismo tipo.');
+  var ks = Object.keys(f).filter(function (k) { return f[k].publicaciones && k !== 'Historias'; }).sort(function (a, b) { return f[b].vistas / f[b].publicaciones - f[a].vistas / f[a].publicaciones; });
+  if (ks.length > 1) r.push('Dar prioridad a ' + ks[0].toLowerCase() + ', que es el formato que más rinde por publicación.');
+  if (c.conv && c.conv.comentarios && c.conv.comentarios.recibidos && c.conv.comentarios.respondidos / c.conv.comentarios.recibidos < .3) r.push('Asignar a una persona para responder comentarios y mensajes todos los días.');
+  if (c.int !== null && c.intP && c.int < c.intP) r.push('La interacción bajó: probar publicaciones con preguntas directas, datos útiles (fechas, requisitos, lugares) y testimonios de beneficiarios.');
+  if (!r.length) r.push('Mantener la frecuencia y los formatos que mejor funcionaron este mes.');
+  return pdfCaja('Recomendaciones para esta cuenta', r);
+}
+function pdfCuenta(c, ant, mes) {
+  if (!c.f) return '<section class="cuenta"><div class="cta-h"><span class="red ' + (c.ig ? 'ig' : 'fb') + '">' + c.a.ab + '</span><div><h2>' + c.nombre + '</h2></div></div><p class="nota">Sin datos de ' + mesLargo(mes).toLowerCase() + ' para esta cuenta.</p></section>';
+  return '<section class="cuenta"><div class="cta-h"><span class="red ' + (c.ig ? 'ig' : 'fb') + '">' + c.a.ab + '</span><div><h2>' + c.nombre + '</h2><p>' + esc(c.usuario) + (c.f.fuente && c.f.fuente !== 'meta' ? ' · incluye captura manual' : '') + '</p></div>' +
+    '<div class="kpis">' + [['Seguidores', pdfNum(c.segA), c.crecP], ['Visualizaciones', pdfNum(c.vis), c.visP ? pct1(c.vis, c.visP) : null], ['Interacciones', pdfNum(c.int), c.intP ? pct1(c.int, c.intP) : null]].map(function (k) {
+      return '<div><small>' + k[0] + '</small><b>' + k[1] + '</b>' + (k[2] !== null && k[2] !== undefined ? '<em class="' + (k[2] < 0 ? 'neg' : 'pos') + '">' + pctTxt(k[2]) + '</em>' : '') + '</div>';
+    }).join('') + '</div></div>' +
+    pdfAudiencia(c, ant, mes) + pdfAlcance(c, ant, mes) + pdfVideo(c, ant, mes) + pdfInteracciones(c, ant, mes) + pdfFormatos(c) + pdfAtencion(c, ant, mes) + pdfAudienciaDemo(c) + pdfMejores(c) + pdfRecomendaciones(c) + '</section>';
+}
+
+/* ---- Documento completo ---- */
+function informeHtml(d, mes, pag) {
+  PDF_EXPLICADO = false;
+  var ant = mesAnt(mes), ctas = modeloCuentas(d, mes, pag), con = ctas.filter(function (c) { return c.f; });
+  var titPag = pag === 'ambas' ? 'Delegación y Delegado' : pag === 'del' ? 'Delegación' : 'Delegado';
+  var tot = function (k) { return con.reduce(function (s, c) { return s + (Number(c[k]) || 0); }, 0); };
+  var resp = function (c) { var cm = c.conv && c.conv.comentarios, ms = c.conv && c.conv.mensajes; var r = (cm ? cm.respondidos : 0) + (ms ? ms.respondidas : 0), t = (cm ? cm.recibidos : 0) + (ms ? ms.conversaciones : 0); return t ? r / t * 100 : null; };
+  // Resumen ejecutivo
+  var resumen = '<table class="t res"><thead><tr><th>Cuenta</th><th class="c">Seguidores</th><th class="c">Crec.</th><th class="c">Visualizaciones</th><th class="c">Cambio</th><th class="c">Interacciones</th><th class="c">Cambio</th><th class="c">Atención*</th></tr></thead><tbody>' +
+    ctas.map(function (c) {
+      return '<tr><th>' + c.nombre + '<small>' + esc(c.usuario) + '</small></th><td class="c"><b>' + pdfNum(c.segA) + '</b></td>' + (c.crecP !== null ? '<td class="c ' + (c.crecP < 0 ? 'neg' : 'pos') + '">' + pctTxt(c.crecP) + '</td>' : '<td class="c">—</td>') +
+        '<td class="c"><b>' + pdfNum(c.vis) + '</b></td>' + pdfCambio(c.vis, c.visP) + '<td class="c"><b>' + pdfNum(c.int) + '</b></td>' + pdfCambio(c.int, c.intP) + '<td class="c">' + pdfPct(resp(c), 0) + '</td></tr>';
+    }).join('') + '<tr class="tot"><th>Total</th><td class="c">' + fmt(tot('segA')) + '</td><td></td><td class="c">' + fmt(tot('vis')) + '</td>' + pdfCambio(tot('vis'), tot('visP')) + '<td class="c">' + fmt(tot('int')) + '</td>' + pdfCambio(tot('int'), tot('intP')) + '<td></td></tr></tbody></table>' +
+    '<p class="nota">* Atención: porcentaje de comentarios y conversaciones privadas que recibieron respuesta de la cuenta.</p>';
+  // Puntos clave
+  var pk = [];
+  var lSeg = con.filter(function (c) { return c.crec !== null; }).sort(function (a, b) { return (b.crecP || 0) - (a.crecP || 0); })[0];
+  if (lSeg) pk.push('<b>Mayor crecimiento:</b> ' + lSeg.nombre + ', ' + pctTxt(lSeg.crecP) + ' (' + (lSeg.crec >= 0 ? '+' : '') + fmt(lSeg.crec) + ' seguidores).');
+  var lVis = con.filter(function (c) { return c.vis !== null; }).sort(function (a, b) { return b.vis - a.vis; })[0];
+  if (lVis) pk.push('<b>Mayor exposición:</b> ' + lVis.nombre + ' con ' + fmt(lVis.vis) + ' visualizaciones (' + Math.round(lVis.vis / (tot('vis') || 1) * 100) + '% del total).');
+  var tI = tot('int'), tIP = tot('intP');
+  pk.push('<b>Interacciones:</b> ' + fmt(tI) + ' en total' + (tIP ? ' (' + pctTxt(pct1(tI, tIP)) + ' contra ' + mesLargo(ant).toLowerCase() + ')' : '') + '.');
+  var rets = con.filter(function (c) { return c.video && numOk(c.video.v3s) && numOk(c.video.v1m) && c.video.v3s; });
+  if (rets.length) pk.push('<b>Videos:</b> ' + listaY(rets.map(function (c) { return c.nombre + ' ' + (c.video.v1m / c.video.v3s * 100).toFixed(1) + '%'; })) + ' de las reproducciones llegan al minuto; los videos enganchan al inicio pero la mayoría no se queda al mensaje.');
+  var ns = con.filter(function (c) { return c.vSeg && (c.vSeg.seg + c.vSeg.noSeg); });
+  if (ns.length) pk.push('<b>Público nuevo:</b> ' + listaY(ns.map(function (c) { return c.nombre + ' ' + (c.vSeg.noSeg / (c.vSeg.seg + c.vSeg.noSeg) * 100).toFixed(0) + '%'; })) + ' de lo visto viene de personas que no siguen la cuenta.');
+  var temas = {};
+  con.forEach(function (c) { var cv = c.conv; if (!cv) return; [cv.comentarios, cv.mensajes].forEach(function (x) { (x && x.temas && x.temas.temas || []).forEach(function (t) { if (t.t !== 'Otros temas' && t.t !== 'Agradecimientos y felicitaciones') temas[t.t] = (temas[t.t] || 0) + t.preg; }); }); });
+  var tk = Object.keys(temas).filter(function (k) { return temas[k]; }).sort(function (a, b) { return temas[b] - temas[a]; });
+  if (tk.length) pk.push('<b>Lo que más pregunta la gente:</b> ' + listaY(tk.slice(0, 4).map(function (k) { return k.toLowerCase() + ' (' + fmt(temas[k]) + ')'; })) + '.');
+  var agF = {};
+  con.forEach(function (c) { var f = c.det.formatos || {}; Object.keys(f).forEach(function (k) { if (!f[k].publicaciones || k === 'Historias') return; var x = agF[k] || (agF[k] = { v: 0, p: 0 }); x.v += f[k].vistas || 0; x.p += f[k].publicaciones; }); });
+  var fk = Object.keys(agF).sort(function (a, b) { return agF[b].v / agF[b].p - agF[a].v / agF[a].p; });
+  if (fk.length) pk.push('<b>Formato más rentable:</b> ' + fk[0].toLowerCase() + ', con ' + fmt(agF[fk[0]].v / agF[fk[0]].p) + ' visualizaciones por publicación.');
+
+  // Comparativo Delegación vs Delegado
+  var comp = '';
+  if (pag === 'ambas') {
+    var lado = function (p) { var xs = ctas.filter(function (c) { return c.a.pagina === p; }); var s = function (k) { return xs.reduce(function (a, c) { return a + (Number(c[k]) || 0); }, 0); }; return { seg: s('segA'), crec: s('crec'), vis: s('vis'), int: s('int'), pubs: xs.reduce(function (a, c) { return a + (c.f ? Number(c.f.publicaciones) || 0 : 0); }, 0) }; };
+    var A = lado('Delegación'), B = lado('Delegado');
+    var fila = function (n, a, b, suf) { var t = (a || 0) + (b || 0); return '<tr><th>' + n + '</th><td class="c"><b>' + fmt(a) + (suf || '') + '</b></td><td class="c">' + (t ? Math.round(a / t * 100) + '%' : '—') + '</td><td class="c"><b>' + fmt(b) + (suf || '') + '</b></td><td class="c">' + (t ? Math.round(b / t * 100) + '%' : '—') + '</td></tr>'; };
+    comp = '<section class="cap"><h1 class="h1">Comparativo Delegación y Delegado</h1><table class="t"><thead><tr><th>Indicador</th><th class="c">Delegación</th><th class="c">Parte</th><th class="c">Delegado</th><th class="c">Parte</th></tr></thead><tbody>' +
+      fila('Seguidores (Facebook + Instagram)', A.seg, B.seg) + fila('Seguidores ganados en el mes', A.crec, B.crec) + fila('Publicaciones', A.pubs, B.pubs) + fila('Visualizaciones', A.vis, B.vis) + fila('Interacciones', A.int, B.int) +
+      '<tr><th>Interacciones por publicación</th><td class="c"><b>' + (A.pubs ? fmt(A.int / A.pubs) : '—') + '</b></td><td></td><td class="c"><b>' + (B.pubs ? fmt(B.int / B.pubs) : '—') + '</b></td><td></td></tr></tbody></table>' +
+      pdfTxt(['La página de la <b>Delegación</b> es el canal institucional: informa fechas, requisitos y resultados de los programas. La del <b>Delegado</b> da rostro y cercanía: recorridos, entregas y mensajes directos.',
+        A.pubs && B.pubs ? (B.int / B.pubs > A.int / A.pubs ? 'Aunque el Delegado publica menos, cada publicación suya genera más interacción (' + fmt(B.int / B.pubs) + ' contra ' + fmt(A.int / A.pubs) + '): conviene que replique o comparta los avisos importantes de la Delegación para darles más alcance.' : 'La Delegación logra más interacción por publicación (' + fmt(A.int / A.pubs) + ' contra ' + fmt(B.int / B.pubs) + '). El Delegado puede fortalecerse con videos cortos en primera persona explicando los programas y respondiendo dudas frecuentes.') : '',
+        'Para fortalecer ambas: coordinar un calendario común, compartir mutuamente las publicaciones clave y responder las mismas dudas con un solo mensaje oficial.']) + '</section>';
+  }
+  var paginas = pag === 'ambas' ? ['Delegación', 'Delegado'] : [pag === 'del' ? 'Delegación' : 'Delegado'];
+  var caps = paginas.map(function (p) {
+    var xs = ctas.filter(function (c) { return c.a.pagina === p; });
+    return '<section class="cap"><div class="cap-h"><small>Capítulo</small><h1 class="h1">' + (p === 'Delegación' ? 'Página de la Delegación' : 'Página del Delegado') + '</h1><p>Facebook e Instagram · ' + mesLargo(mes) + ' comparado con ' + mesLargo(ant).toLowerCase() + '</p></div>' +
+      xs.map(function (c) { return pdfCuenta(c, ant, mes); }).join('') + '</section>';
+  }).join('');
+  var concl = '<section class="cap"><h1 class="h1">Conclusiones generales</h1>' + pdfTxt([textoConclusion(ctas, pag, mes, ant)]) +
+    pdfCaja('Acciones propuestas para el siguiente mes', [
+      'Videos de 20 a 40 segundos, con el mensaje en los primeros segundos y subtítulos.',
+      'Invitar a seguir la página en cada publicación: la mayor parte de quienes ven el contenido aún no son seguidores.',
+      'Responder comentarios y mensajes todos los días, empezando por las preguntas sobre pagos, registros y requisitos.',
+      'Publicar una pieza fija con las dudas más frecuentes del mes y fijarla en la página.',
+      'Coordinar las publicaciones de la Delegación y del Delegado para que los avisos importantes salgan en ambas.'
+    ]) + '</section>';
+  var glosario = '<section class="cap glos"><h1 class="h1">Glosario</h1><dl>' + [
+    ['Visualizaciones', 'Veces que el contenido apareció en pantalla. Una misma persona puede contar varias veces.'],
+    ['Alcance / espectadores', 'Personas distintas que vieron el contenido.'],
+    ['Interacciones', 'Reacciones o me gusta, comentarios y compartidos (y guardados en Instagram).'],
+    ['Tasa de interacción', 'Interacciones divididas entre visualizaciones. Mide qué tanto mueve a la gente lo que ve.'],
+    ['Seguidores netos', 'Seguidores nuevos menos las personas que dejaron de seguir.'],
+    ['Tiempo de reproducción', 'Suma de todo el tiempo que la gente vio los videos de la cuenta.'],
+    ['Reproducción de 3 segundos / 1 minuto', 'Veces que alguien vio un video al menos 3 segundos o al menos 1 minuto. Comparar ambas dice cuánta gente se queda al mensaje.'],
+    ['No seguidores', 'Personas que vieron el contenido sin seguir la cuenta (les llegó por recomendación o porque alguien lo compartió).'],
+    ['Tiempo típico de respuesta', 'La mitad de las respuestas se dio en ese tiempo o menos (mediana).']
+  ].map(function (x) { return '<dt>' + x[0] + '</dt><dd>' + x[1] + '</dd>'; }).join('') + '</dl><p class="nota">Fuente: Meta (Facebook e Instagram) a través de su API oficial; algunas cifras pueden incluir captura manual. Generado por Bienestar Conecta el ' + fCorta(today()) + ' ' + today().slice(0, 4) + '.</p></section>';
+
+  var css = '@page{size:letter;margin:14mm 13mm 16mm}*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}' +
+    'body{margin:0;font-family:Figtree,system-ui,sans-serif;color:' + PDF_C.ink + ';font-size:10.2pt;line-height:1.45}' +
+    'h1,h2,h3{font-family:Outfit,system-ui,sans-serif;margin:0;font-weight:600;letter-spacing:-.01em}a{color:' + PDF_C.vino + ';text-decoration:none}' +
+    '.portada{min-height:240mm;display:flex;flex-direction:column;gap:14px;break-after:page}' +
+    '.portada .band{background:' + PDF_C.vino + ';color:#fff;border-radius:14px;padding:26px 26px 22px}.portada .band small{letter-spacing:.12em;text-transform:uppercase;font-size:8.5pt;opacity:.85}' +
+    '.portada .band h1{font-size:27pt;font-weight:500;margin:8px 0 4px}.portada .band p{margin:0;font-size:12pt;opacity:.95}' +
+    '.h1{font-size:17pt;color:' + PDF_C.vino + ';margin:0 0 10px}.h2s{font-size:12.5pt;margin:14px 0 6px}' +
+    '.cap{break-before:page}.cap-h{border-left:5px solid ' + PDF_C.oro + ';padding:4px 0 4px 12px;margin-bottom:14px}.cap-h small{text-transform:uppercase;letter-spacing:.12em;color:' + PDF_C.muted + ';font-size:8pt}.cap-h p{margin:2px 0 0;color:' + PDF_C.muted + '}' +
+    '.cuenta{margin-bottom:18px}.cuenta+.cuenta{break-before:page}' +
+    '.cta-h{display:flex;align-items:center;gap:12px;background:' + PDF_C.sunk + ';border-radius:12px;padding:12px 14px;margin-bottom:12px;break-inside:avoid}.cta-h h2{font-size:15pt}.cta-h p{margin:0;color:' + PDF_C.muted + ';font-size:9pt}' +
+    '.red{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;color:#fff;font:700 10pt Outfit,sans-serif;flex:none}.red.fb{background:#1877F2}.red.ig{background:linear-gradient(135deg,#F58529,#DD2A7B,#8134AF)}' +
+    '.kpis{margin-left:auto;display:flex;gap:16px}.kpis div{display:flex;flex-direction:column;align-items:flex-end}.kpis small{color:' + PDF_C.muted + ';font-size:7.8pt}.kpis b{font:600 13pt Outfit,sans-serif}.kpis em{font-style:normal;font-size:8pt;font-weight:600}' +
+    '.blk{margin:0 0 14px}.t,.b2,.txt p{break-inside:avoid}.t tr{break-inside:avoid}.blk h3{break-after:avoid;font-size:11.5pt;color:' + PDF_C.vino + ';border-bottom:1.5px solid ' + PDF_C.vinoS + ';padding-bottom:4px;margin-bottom:8px}' +
+    '.t{width:100%;border-collapse:collapse;font-size:9.2pt;margin:4px 0 8px}.t th,.t td{padding:5px 7px;border-bottom:1px solid ' + PDF_C.line + ';text-align:left;vertical-align:top}' +
+    '.t thead th{background:' + PDF_C.vino + ';color:#fff;font-weight:600;font-size:8.6pt;border:0}.t tbody th{font-weight:500}.t tbody th small{display:block;color:' + PDF_C.muted + ';font-size:7.6pt;font-weight:400}' +
+    '.t .c{text-align:center}.t tbody tr:nth-child(even) td,.t tbody tr:nth-child(even) th{background:#FBF8F7}.t tr.tot th,.t tr.tot td{font-weight:700;background:' + PDF_C.oroS + '!important}' +
+    '.t.temas td.ej{font-size:8.2pt;color:' + PDF_C.muted + ';font-style:italic}.t.top td:nth-child(2){font-size:8.6pt}' +
+    '.pos{color:' + PDF_C.jade + '}.neg{color:' + PDF_C.bad + '}td.pos,td.neg{font-weight:600}' +
+    '.mini{display:inline-block;width:46px;height:6px;background:' + PDF_C.line + ';border-radius:3px;margin-right:5px;vertical-align:middle;overflow:hidden}.mini i{display:block;height:100%;background:' + PDF_C.vino + '}' +
+    '.txt p{margin:0 0 5px;text-align:justify}.nota{font-size:8.3pt;color:' + PDF_C.muted + ';margin:3px 0 6px}.nota.aviso{color:' + PDF_C.bad + '}' +
+    '.caja{background:' + PDF_C.oroS + ';border-radius:10px;padding:9px 12px;margin:6px 0 10px;break-inside:avoid}.caja b{color:#8A6631}.caja ul{margin:4px 0 0;padding-left:17px}.caja li{margin:2px 0}' +
+    '.g{margin:6px 0 4px;break-inside:avoid}.g figcaption{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:8.6pt;margin-bottom:2px}.g figcaption span{display:inline-flex;align-items:center;gap:5px;color:' + PDF_C.muted + '}.g i,.b2l i{width:9px;height:9px;border-radius:2px;display:inline-block}' +
+    '.g svg{width:100%;height:auto;display:block}.g svg text{font-size:10px;fill:' + PDF_C.muted + ';font-family:Figtree,sans-serif}' +
+    '.b2{margin:4px 0 8px}.b2t{display:flex;height:12px;border-radius:6px;overflow:hidden}.b2l{display:flex;gap:16px;font-size:8.8pt;margin-top:4px}.b2l span{display:inline-flex;align-items:center;gap:5px}' +
+    '.glos dl{display:grid;grid-template-columns:42mm 1fr;gap:6px 12px;margin:0 0 10px}.glos dt{font-weight:600}.glos dd{margin:0}' +
+    '.meta-p{display:flex;justify-content:space-between;color:' + PDF_C.muted + ';font-size:8.5pt;margin-top:auto}';
+  return '<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Informe de redes ' + mesLargo(mes) + ' · ' + titPag + '</title>' +
+    '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Figtree:wght@400;500;600;700&display=swap"><style>' + css + '</style></head><body>' +
+    '<section class="portada"><div class="band"><small>Delegación de Programas para el Bienestar en Tabasco · Comunicación Social</small><h1>Informe mensual de redes sociales</h1><p>' + mesLargo(mes) + ' · ' + titPag + ' · comparado con ' + mesLargo(ant).toLowerCase() + '</p></div>' +
+      '<h2 class="h2s">Resumen ejecutivo</h2>' + resumen + '<h2 class="h2s">Puntos clave del mes</h2><div class="txt">' + pk.map(function (x) { return '<p>• ' + x + '</p>'; }).join('') + '</div>' +
+      '<div class="meta-p"><span>Contenido: ' + (pag === 'ambas' ? 'capítulo Delegación, capítulo Delegado, comparativo, ' : 'capítulo de la página, ') + 'conclusiones y glosario.</span><span>Fuente: Meta</span></div></section>' +
+    caps + comp + concl + glosario + '</body></html>';
+}
+
+/** Arma el informe en un marco oculto y abre la impresión (Guardar como PDF). */
+function imprimirInforme(d, btn) {
+  var mes = S.repMes, pag = S.repPag || 'ambas';
+  var html;
+  try { html = informeHtml(d, mes, pag); } catch (e) { toast('No se pudo armar el informe: ' + e.message); return; }
+  var viejo = document.getElementById('marcoInforme'); if (viejo) viejo.remove();
+  var fr = document.createElement('iframe');
+  fr.id = 'marcoInforme'; fr.setAttribute('aria-hidden', 'true'); fr.title = 'Informe';
+  fr.style.cssText = 'position:fixed;right:0;bottom:0;width:816px;height:1056px;border:0;opacity:0;pointer-events:none;z-index:-1';
+  document.body.appendChild(fr);
+  if (btn) btn.disabled = true;
+  var doc = fr.contentWindow.document;
+  doc.open(); doc.write(html); doc.close();
+  var listo = function () {
+    try { fr.contentWindow.focus(); fr.contentWindow.print(); } catch (e) { toast('No se pudo abrir la impresión.'); }
+    if (btn) btn.disabled = false;
+  };
+  var fuentes = doc.fonts && doc.fonts.ready ? doc.fonts.ready : Promise.resolve();
+  Promise.race([fuentes, new Promise(function (ok) { setTimeout(ok, 2500); })]).then(function () { setTimeout(listo, 300); });
 }
 
 /* ---------- Excel del reporte (tablas con datos concretos) ---------- */
@@ -2272,6 +2690,34 @@ function descargarExcel(d, btn) {
       (det.mejores || []).forEach(function (p, i) { mp.push([a.red + ' ' + a.pagina, i + 1, p.fecha, p.formato, p.texto || '', num(p.vistas), num(p.interacciones), num(p.reacciones), num(p.comentarios), num(p.compartidos), p.link || '']); });
     });
     if (mp.length) hoja('Mejores publicaciones', 'Mejores publicaciones · ' + mesLargo(mes), ['Cuenta', '#', 'Fecha', 'Formato', 'Texto', 'Visualizaciones', 'Interacciones', 'Reacciones', 'Comentarios', 'Compartidos', 'Link'], mp, [22, 4, 11, 13, 50, 14, 13, 11, 12, 12, 40]);
+    // Atención a la ciudadanía
+    var at = [], tm = [];
+    cuentas.forEach(function (a) {
+      var cv = ((fila(mes, a.k) || {}).detalle || {}).conversacion, cvP = ((fila(ant, a.k) || {}).detalle || {}).conversacion || {};
+      if (!cv) return;
+      var n = a.red + ' ' + a.pagina, cm = cv.comentarios, ms = cv.mensajes, cmP = cvP.comentarios || {}, msP = cvP.mensajes || {};
+      var r = function (x, y) { return numOk(x) && y ? Math.round(x / y * 1000) / 10 : ''; };
+      if (cm) {
+        at.push([n, 'Comentarios del público', num(cmP.recibidos), num(cm.recibidos), pc(cm.recibidos, cmP.recibidos)]);
+        at.push([n, 'Comentarios respondidos', num(cmP.respondidos), num(cm.respondidos), pc(cm.respondidos, cmP.respondidos)]);
+        at.push([n, '% comentarios respondidos', r(cmP.respondidos, cmP.recibidos), r(cm.respondidos, cm.recibidos), '']);
+        at.push([n, 'Preguntas en comentarios', num(cmP.temas && cmP.temas.preguntas), num(cm.temas && cm.temas.preguntas), '']);
+        at.push([n, 'Tiempo típico de respuesta (min)', num(cmP.tiempoMin), num(cm.tiempoMin), '']);
+      }
+      if (ms) {
+        at.push([n, 'Conversaciones privadas', num(msP.conversaciones), num(ms.conversaciones), pc(ms.conversaciones, msP.conversaciones)]);
+        at.push([n, 'Conversaciones contestadas', num(msP.respondidas), num(ms.respondidas), pc(ms.respondidas, msP.respondidas)]);
+        at.push([n, '% conversaciones contestadas', r(msP.respondidas, msP.conversaciones), r(ms.respondidas, ms.conversaciones), '']);
+        at.push([n, 'Mensajes recibidos', num(msP.recibidos), num(ms.recibidos), pc(ms.recibidos, msP.recibidos)]);
+        at.push([n, 'Mensajes enviados', num(msP.enviados), num(ms.enviados), pc(ms.enviados, msP.enviados)]);
+        at.push([n, 'Tiempo típico de respuesta (min)', num(msP.tiempoMin), num(ms.tiempoMin), '']);
+      }
+      [['Comentarios', cm], ['Mensajes privados', ms]].forEach(function (x) {
+        (x[1] && x[1].temas && x[1].temas.temas || []).forEach(function (t) { tm.push([n, x[0], t.t, t.n, t.preg, (t.ej || []).join('  |  ')]); });
+      });
+    });
+    if (at.length) hoja('Atención', 'Atención a la ciudadanía (comentarios y mensajes) · ' + mesLargo(mes) + ' vs ' + mesLargo(ant), ['Cuenta', 'Indicador', mesLargo(ant), mesLargo(mes), 'Cambio %'], at, [22, 34, 16, 16, 12], { 4: '0.0%' });
+    if (tm.length) hoja('Lo que preguntan', 'Temas de comentarios y mensajes · ' + mesLargo(mes), ['Cuenta', 'Canal', 'Tema', 'Mensajes', 'Preguntas', 'Ejemplos (sin datos personales)'], tm, [22, 17, 36, 11, 11, 90]);
     // 5. Audiencia
     var au = [];
     cuentas.forEach(function (a) {
@@ -2709,9 +3155,25 @@ function pintarConfig(c) {
     call('probarMeta').then(function (r) { lista($('#mRes'), r, 'mensaje'); }).catch(function (e) { $('#mRes').textContent = e.message; }).then(function () { b.disabled = false; });
   };
   $('#mRun').onclick = function () {
-    var b = this; b.disabled = true; $('#mRun2').innerHTML = '<p class="meta">Consultando a Meta… puede tardar un minuto.</p>';
-    call('actualizarMetricas', { mes: $('#mMes').value }).then(function (r) { lista($('#mRun2'), r.cuentas, 'error'); toast('Métricas de ' + mesLargo(r.mes)); })
-      .catch(function (e) { $('#mRun2').textContent = e.message; }).then(function () { b.disabled = false; });
+    var b = this, mes = $('#mMes').value, pasos = [], res = [], caja = $('#mRun2');
+    CUENTAS.forEach(function (a) { pasos.push([a.k, 'metricas']); });
+    CUENTAS.forEach(function (a) { pasos.push([a.k, 'conversacion']); });
+    b.disabled = true;
+    var pinta = function (i) {
+      caja.innerHTML = res.map(function (r) {
+        var t = r.parte === 'conversacion' ? 'mensajes y comentarios' : 'cifras';
+        return '<div><span class="tag ' + (r.ok ? (r.avisos && r.avisos.length ? 'warn' : 'ok') : 'bad') + '">' + (r.ok ? (r.avisos && r.avisos.length ? 'Parcial' : 'Bien') : 'Error') + '</span><span><b>' + nombreCuenta(r.cuenta) + '</b> · ' + t +
+          (r.error ? ' · ' + esc(r.error) : '') + (r.avisos && r.avisos.length ? ' · ' + esc(r.avisos.join(' · ')) : '') + '</span></div>';
+      }).join('') + (i < pasos.length ? '<p class="meta">Consultando a Meta: ' + nombreCuenta(pasos[i][0]) + ' · ' + (pasos[i][1] === 'conversacion' ? 'mensajes y comentarios' : 'cifras') + ' (' + (i + 1) + ' de ' + pasos.length + ')…</p>' : '');
+    };
+    var paso = function (i) {
+      pinta(i);
+      if (i >= pasos.length) { b.disabled = false; toast('Métricas de ' + mesLargo(mes)); return; }
+      call('actualizarMetricas', { mes: mes, cuenta: pasos[i][0], parte: pasos[i][1] })
+        .then(function (r) { res.push(r.cuentas[0]); }, function (e) { res.push({ cuenta: pasos[i][0], parte: pasos[i][1], ok: false, error: e.message }); })
+        .then(function () { paso(i + 1); });
+    };
+    paso(0);
   };
   $('#fMan').onsubmit = function (e) {
     e.preventDefault();
